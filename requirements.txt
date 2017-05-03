@@ -1,5 +1,5 @@
 jupyter
-swiftclient
+python-swiftclient
 keystoneauth1
 traitlets
 requests
