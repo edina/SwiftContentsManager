@@ -1,0 +1,7 @@
+jupyter
+swiftclient
+keystoneauth1
+traitlets
+requests
+nose
+mock
