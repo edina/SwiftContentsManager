@@ -2,7 +2,7 @@
 Utilities to make S3 look like a regular file system
 """
 import six
-import swiftclient
+import python-swiftclient
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, Unicode, Instance
