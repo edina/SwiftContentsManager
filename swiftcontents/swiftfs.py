@@ -8,43 +8,43 @@ from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, HasTraits, Unicode, Instance
 
-class SwiftFS(HasTraits):
+class SwiftFS():
 
     # Keystone has standardized on the term **project**
     # as the entity that owns the resources    
     os_auth_url = Unicode(
         help="OpenStack Authentication URL",
-        default_value=os.environ['OS_AUTH_URL'],
+        default_value=os.environ['OS_AUTH_URL'] if os.environ['OS_AUTH_URL'] else '',
         config = True
     )
     os_project_id = Unicode(
         help="ID for the 'project' within Swift",
-        default_value=os.environ['OS_PROJECT_ID'],
+        default_value=os.environ['OS_PROJECT_ID'] if os.environ['OS_PROJECT_ID'] else '',
         config = True
         )
     os_project_name = Unicode(
         help="name for the 'project' within the Swift store",
-        default_value=os.environ['OS_PROJECT_NAME'],
+        default_value=os.environ['OS_PROJECT_NAME'] if os.environ['OS_PROJECT_NAMEL'] else '',
         config = True
         )
     os_region_name = Unicode(
         help="name for the 'region' within the Swift store",
-        default_value=os.environ['OS_REGION_NAME'],
+        default_value=os.environ['OS_REGION_NAME'] if os.environ['OS_REGION_NAME'] else '',
         config = True
         )
     os_user_domain_name = Unicode(
         help="The 'domain' for the user within Swift",
-        default_value=os.environ['OS_USER_DOMAIN_NAME'],
+        default_value=os.environ['OS_USER_DOMAIN_NAME'] if os.environ['OS_USER_DOMAIN_NAME'] else '',
         config = True
         )
     os_username = Unicode(
         help="The username for connecting to the Swift system",
-        default_value=os.environ['OS_USERNAME'],
+        default_value=os.environ['OS_USERNAME'] if os.environ['OS_USERNAMEL'] else '',
         config = True
         )
     os_password = Unicode(
         help="The password for the user connecting to the Swift system",
-        default_value=os.environ['OS_PASSWORD'],
+        default_value=os.environ['OS_PASSWORD'] if os.environ['OS_PASSWORD'] else '',
         config = True
         )
     # hard-coded values
