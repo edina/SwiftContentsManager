@@ -92,8 +92,7 @@ class SwiftFS(HasTraits):
             try:
                 list_parts_gen = swift.list(container=self.notebook_user)
                 for page in list_parts_gen:
-                    if page["success"]:
-                    else:
+                    if not page["success"]:
                         raise page["error"]
 
             except SwiftError as e:
