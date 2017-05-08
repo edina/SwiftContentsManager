@@ -3,7 +3,7 @@ Utilities to make Swift look like a regular file system
 """
 import six
 import os
-from swiftclient.service import SwiftClient, SwiftService, SwiftError
+from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, Unicode, Instance
