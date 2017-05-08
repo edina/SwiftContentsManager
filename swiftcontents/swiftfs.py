@@ -14,37 +14,37 @@ class SwiftFS():
     # as the entity that owns the resources    
     os_auth_url = Unicode(
         help="OpenStack Authentication URL",
-        default_value=os.environ['OS_AUTH_URL'] if os.environ['OS_AUTH_URL'] else '',
+        default_value = os.environ.get('OS_AUTH_URL'),
         config = True
     )
     os_project_id = Unicode(
         help="ID for the 'project' within Swift",
-        default_value=os.environ['OS_PROJECT_ID'] if os.environ['OS_PROJECT_ID'] else '',
+        default_value = os.environ.get('OS_PROJECT_ID'),
         config = True
         )
     os_project_name = Unicode(
         help="name for the 'project' within the Swift store",
-        default_value=os.environ['OS_PROJECT_NAME'] if os.environ['OS_PROJECT_NAMEL'] else '',
+        default_value = os.environ.get('OS_PROJECT_NAME', ''),
         config = True
         )
     os_region_name = Unicode(
         help="name for the 'region' within the Swift store",
-        default_value=os.environ['OS_REGION_NAME'] if os.environ['OS_REGION_NAME'] else '',
+        default_value=os.environ.get('OS_REGION_NAME', ''),
         config = True
         )
     os_user_domain_name = Unicode(
         help="The 'domain' for the user within Swift",
-        default_value=os.environ['OS_USER_DOMAIN_NAME'] if os.environ['OS_USER_DOMAIN_NAME'] else '',
+        default_value=os.environ.get('OS_USER_DOMAIN_NAME', ''),
         config = True
         )
     os_username = Unicode(
         help="The username for connecting to the Swift system",
-        default_value=os.environ['OS_USERNAME'] if os.environ['OS_USERNAMEL'] else '',
+        default_value=os.environ.get('OS_USERNAME', ''),
         config = True
         )
     os_password = Unicode(
         help="The password for the user connecting to the Swift system",
-        default_value=os.environ['OS_PASSWORD'] if os.environ['OS_PASSWORD'] else '',
+        default_value=os.environ.get('OS_PASSWORD', ''),
         config = True
         )
     # hard-coded values
