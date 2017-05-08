@@ -61,9 +61,7 @@ class SwiftFS(HasTraits):
         config = True
         )
 
-    swift_connection = Instance(
-        klass = 'swiftclient.client.Connection'
-    )
+    swift_connection = Any()
 
     delimiter = Unicode("/", help="Path delimiter").tag(config=True)
 
