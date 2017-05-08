@@ -9,7 +9,7 @@ from traitlets import default, Unicode, List
 from swiftcontents.swiftfs import SwiftFS, SwiftFSError, NoSuchFile
 from swiftcontents.ipycompat import ContentsManager
 
-class SwiftContentsManager(ContentsManager, HasTraits):
+class SwiftContentsManager(ContentsManager):
 
     # Keystone has standardized on the term **project**
     # as the entity that owns the resources    

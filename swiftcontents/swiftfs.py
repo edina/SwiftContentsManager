@@ -6,7 +6,7 @@ import os
 from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
-from traitlets import default, Unicode, Instance
+from traitlets import default, HasTraits, Unicode, Instance
 
 class SwiftFS(HasTraits):
 
