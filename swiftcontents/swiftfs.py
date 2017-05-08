@@ -144,7 +144,7 @@ class SwiftFS(HasTraits):
         self.log.debug("SwiftContents[SwiftFS] Making dir: `%s`", path)
 
     def read(self, path):
-        #return text
+        return path #text
 
     def write(self, path, content):
         key = self.as_key(path)
