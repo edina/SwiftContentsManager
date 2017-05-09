@@ -6,7 +6,7 @@ import os
 from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
-from traitlets import default, Unicode, Any
+from traitlets import default, Unicode, Any, Instance
 
 class SwiftFS():
 
@@ -53,9 +53,12 @@ class SwiftFS():
         config = True
         )
 
-    swift_connection = Any()
+    #swift_connection = Any()
+    #swift_connection = Instance(
+    #    klass = 'swiftclient.client.Connection'
+    #    )
 
-    delimiter = Unicode("/", help="Path delimiter").tag(config=True)
+    delimiter = Unicode("/", help="Path delimiter", config=True)
 
     root_dir = Unicode("./", config=True)
 
@@ -112,8 +115,8 @@ class SwiftFS():
                                    project_name=os.environ['OS_PROJECT_NAME'],
                                    project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
                 keystone_session = session.Session(auth=auth)
-                self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                self.swift_connection.put_container(self.notebook_user)
+                #self.swift_connection = swiftclient.client.Connection(session=keystone_session)
+                #self.swift_connection.put_container(self.notebook_user)
 
         self.delimiter = "/"
 
