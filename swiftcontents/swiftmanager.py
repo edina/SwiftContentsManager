@@ -11,64 +11,9 @@ from swiftcontents.ipycompat import ContentsManager
 
 class SwiftContentsManager(ContentsManager):
 
-    # Keystone has standardized on the term **project**
-    # as the entity that owns the resources    
-    os_auth_url = Unicode(
-        help="OpenStack Authentication URL",
-        default_value=os.environ['OS_AUTH_URL'],
-        config = True
-    )
-    os_project_id = Unicode(
-        help="ID for the 'project' within Swift",
-        default_value=os.environ['OS_PROJECT_ID'],
-        config = True
-        )
-    os_project_name = Unicode(
-        help="name for the 'project' within the Swift store",
-        default_value=os.environ['OS_PROJECT_NAME'],
-        config = True
-        )
-    os_region_name = Unicode(
-        help="name for the 'region' within the Swift store",
-        default_value=os.environ['OS_REGION_NAME'],
-        config = True
-        )
-    os_user_domain_name = Unicode(
-        help="The 'domain' for the user within Swift",
-        default_value=os.environ['OS_USER_DOMAIN_NAME'],
-        config = True
-        )
-    os_username = Unicode(
-        help="The username for connecting to the Swift system",
-        default_value=os.environ['OS_USERNAME'],
-        config = True
-        )
-    os_password = Unicode(
-        help="The password for the user connecting to the Swift system",
-        default_value=os.environ['OS_PASSWORD'],
-        config = True
-        )
-    # hard-coded values
-    os_identity_api_version = Unicode('3')
-    os_interface = Unicode('public')
-
-    delimiter = Unicode("/", help="Path delimiter").tag(config=True)
-
-    root_dir = Unicode("./", config=True)
-
     def __init__(self, *args, **kwargs):
         super(SwiftContentsManager, self).__init__(*args, **kwargs)
-
-        self.swiftfs = SwiftFS(
-            log=self.log,
-            access_key_id=self.access_key_id,
-            secret_access_key=self.secret_access_key,
-            endpoint_url=self.endpoint_url,
-            region_name=self.region_name,
-            bucket_name=self.bucket_name,
-            prefix=self.prefix,
-            signature_version=self.signature_version,
-            delimiter=self.delimiter)
+        self.swiftfs = SwiftFS(log=self.log)
 
     def _checkpoints_class_default(self):
         return GenericFileCheckpoints
@@ -102,17 +47,17 @@ class SwiftContentsManager(ContentsManager):
 
     def file_exists(self, path):
         # Does a file exist at the given path?
-        self.log.debug("SwiftContents[S3manager]: file_exists '%s'", path)
-        return self.s3fs.isfile(path)
+        self.log.debug("SwiftContents[swiftmanager]: file_exists '%s'", path)
+        return self.swiftfs.isfile(path)
 
     def dir_exists(self, path):
         # Does a directory exist at the given path?
-        self.log.debug("SwiftContents[S3manager]: dir_exists '%s'", path)
-        return self.s3fs.isdir(path)
+        self.log.debug("SwiftContents[swiftmanager]: dir_exists '%s'", path)
+        return self.swiftfs.isdir(path)
 
     def get(self, path, content=True, type=None, format=None):
         # Get a file or directory model.
-        self.log.debug("SwiftContents[S3manager]: get '%s' %s %s", path, type, format)
+        self.log.debug("SwiftContents[swiftmanager]: get '%s' %s %s", path, type, format)
         path = path.strip('/')
 
         if type is None:
@@ -129,25 +74,25 @@ class SwiftContentsManager(ContentsManager):
         return func(path=path, content=content, format=format)
 
     def _get_directory(self, path, content=True, format=None):
-        self.log.debug("SwiftContents[S3manager]: get_directory '%s' %s %s", path, type, format)
+        self.log.debug("SwiftContents[swiftmanager]: get_directory '%s' %s %s", path, type, format)
         return self._directory_model_from_path(path, content=content)
 
     def _get_notebook(self, path, content=True, format=None):
-        self.log.debug("SwiftContents[S3manager]: get_notebook '%s' %s %s", path, content, format)
+        self.log.debug("SwiftContents[swiftmanager]: get_notebook '%s' %s %s", path, content, format)
         return self._notebook_model_from_path(path, content=content, format=format)
 
     def _get_file(self, path, content=True, format=None):
-        self.log.debug("SwiftContents[S3manager]: get_file '%s' %s %s", path, content, format)
+        self.log.debug("SwiftContents[swiftmanager]: get_file '%s' %s %s", path, content, format)
         return self._file_model_from_path(path, content=content, format=format)
 
     def _directory_model_from_path(self, path, content=False):
-        self.log.debug("SwiftContents[S3manager]: _directory_model_from_path '%s' %s", path, content)
+        self.log.debug("SwiftContents[swiftmanager]: _directory_model_from_path '%s' %s", path, content)
         model = base_directory_model(path)
         if content:
             if not self.dir_exists(path):
                 self.no_such_entity(path)
             model["format"] = "json"
-            dir_content = self.s3fs.listdir(path=path, with_prefix=True)
+            dir_content = self.swiftfs.listdir(path=path, with_prefix=True)
             model["content"] = self._convert_file_records(dir_content)
         return model
 
@@ -161,9 +106,9 @@ class SwiftContentsManager(ContentsManager):
         # model['last_modified'] = model['created'] = record['created_at']
         model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
         if content:
-            if not self.s3fs.isfile(path):
+            if not self.swiftfs.isfile(path):
                 self.no_such_entity(path)
-            file_content = self.s3fs.read(path)
+            file_content = self.swiftfs.read(path)
             nb_content = reads(file_content, as_version=NBFORMAT_VERSION)
             self.mark_trusted_cells(nb_content, path)
             model["format"] = "json"
@@ -180,7 +125,7 @@ class SwiftContentsManager(ContentsManager):
         model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
         if content:
             try:
-                content = self.s3fs.read(path)
+                content = self.swiftfs.read(path)
             except NoSuchFile as e:
                 self.no_such_entity(e.path)
             except S3FSError as e:
@@ -201,8 +146,8 @@ class SwiftContentsManager(ContentsManager):
         """
         ret = []
         for path in paths:
-            path = self.s3fs.remove_prefix(path, self.prefix)    # Remove bucket prefix from paths
-            if os.path.basename(path) == self.s3fs.dir_keep_file:
+            path = self.swiftfs.remove_prefix(path, self.prefix)    # Remove bucket prefix from paths
+            if os.path.basename(path) == self.swiftfs.dir_keep_file:
                 continue
             type_ = self.guess_type(path, allow_directory=True)
             if type_ == "notebook":
@@ -218,7 +163,7 @@ class SwiftContentsManager(ContentsManager):
     def save(self, model, path):
         """Save a file or directory model to path.
         """
-        self.log.debug("SwiftContents[S3manager]: save %s: '%s'", model, path)
+        self.log.debug("SwiftContents[swiftmanager]: save %s: '%s'", model, path)
         if "type" not in model:
             self.do_error("No model type provided", 400)
         if "content" not in model and model["type"] != "directory":
@@ -247,16 +192,16 @@ class SwiftContentsManager(ContentsManager):
         nb_contents = from_dict(model['content'])
         self.check_and_sign(nb_contents, path)
         file_contents = json.dumps(model["content"])
-        self.s3fs.write(path, file_contents)
+        self.swiftfs.write(path, file_contents)
         self.validate_notebook_model(model)
         return model.get("message")
 
     def _save_file(self, model, path):
         file_contents = model["content"]
-        self.s3fs.write(path, file_contents)
+        self.swiftfs.write(path, file_contents)
 
     def _save_directory(self, path):
-        self.s3fs.mkdir(path)
+        self.swiftfs.mkdir(path)
 
     def rename_file(self, old_path, new_path):
         """Rename a file or directory.
@@ -264,29 +209,29 @@ class SwiftContentsManager(ContentsManager):
         NOTE: This method is unfortunately named on the base class.  It
         actually moves a file or a directory.
         """
-        self.log.debug("SwiftContents[S3manager]: Init rename of '%s' to '%s'", old_path, new_path)
+        self.log.debug("SwiftContents[swiftmanager]: Init rename of '%s' to '%s'", old_path, new_path)
         if self.file_exists(new_path) or self.dir_exists(new_path):
             self.already_exists(new_path)
         elif self.file_exists(old_path) or self.dir_exists(old_path):
-            self.log.debug("SwiftContents[S3manager]: Actually renaming '%s' to '%s'", old_path,
+            self.log.debug("SwiftContents[swiftmanager]: Actually renaming '%s' to '%s'", old_path,
                            new_path)
-            self.s3fs.mv(old_path, new_path)
+            self.swiftfs.mv(old_path, new_path)
         else:
             self.no_such_entity(old_path)
 
     def delete_file(self, path):
         """Delete the file or directory at path.
         """
-        self.log.debug("SwiftContents[S3manager]: delete_file '%s'", path)
+        self.log.debug("SwiftContents[swiftmanager]: delete_file '%s'", path)
         if self.file_exists(path) or self.dir_exists(path):
-            self.s3fs.rm(path)
+            self.swiftfs.rm(path)
         else:
             self.no_such_entity(path)
 
     def is_hidden(self, path):
         """Is path a hidden directory or file?
         """
-        self.log.debug("SwiftContents[S3manager]: is_hidden '%s'", path)
+        self.log.debug("SwiftContents[swiftmanager]: is_hidden '%s'", path)
         return False
 
 
