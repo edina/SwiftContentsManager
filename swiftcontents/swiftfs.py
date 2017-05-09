@@ -72,7 +72,7 @@ class SwiftFS():
         # are set to the values we need for this user.
         if self.os_auth_url:
             os.environ['OS_AUTH_URL'] = self.os_auth_url
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
+            #self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
         #if self.os_project_id:
         #    os.environ['OS_PROJECT_ID'] = str(self.os_project_id)
         #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_id )
