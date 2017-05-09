@@ -84,7 +84,6 @@ class SwiftFS():
             self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_user_domain_name)
         if self.os_username:
             os.environ['OS_USERNAME'] = str(self.os_username)
-            self.log.debug("SwiftContents[SwiftFS] Listing directory: `%s`", path)i
             self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_usernamel )
         if self.os_password:
             os.environ['OS_PASSWORD'] = str(self.os_password)
