@@ -40,9 +40,9 @@ class SwiftFS():
     #    help="The password for the user connecting to the Swift system",
     #    config = True
     #    )
-    ## hard-coded values
-    #os_identity_api_version = Unicode('3')
-    #os_interface = Unicode('public')
+    # hard-coded values
+    os_identity_api_version = Unicode('3')
+    os_interface = Unicode('public')
 
     #notebook_user = Unicode('test_account',
     #    help="The user who's starting the notebook",
