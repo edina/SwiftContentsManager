@@ -10,12 +10,12 @@ from traitlets import default, Unicode, Any, Instance
 
 class SwiftFS():
 
-    ## Keystone has standardized on the term **project**
-    ## as the entity that owns the resources    
-    #os_auth_url = Unicode('',
-    #    help="OpenStack Authentication URL",
-    #    config = True
-    #)
+    # Keystone has standardized on the term **project**
+    # as the entity that owns the resources    
+    os_auth_url = Unicode('',
+        help="OpenStack Authentication URL",
+        config = True
+    )
     #os_project_id = Unicode('',
     #    help="ID for the 'project' within Swift",
     #    config = True
