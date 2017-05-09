@@ -10,48 +10,48 @@ from traitlets import default, Unicode, Any, Instance
 
 class SwiftFS():
 
-    # Keystone has standardized on the term **project**
-    # as the entity that owns the resources    
-    os_auth_url = Unicode('',
-        help="OpenStack Authentication URL",
-        config = True
-    )
-    os_project_id = Unicode('',
-        help="ID for the 'project' within Swift",
-        config = True
-        )
-    os_project_name = Unicode('',
-        help="name for the 'project' within the Swift store",
-        config = True
-        )
-    os_region_name = Unicode('',
-        help="name for the 'region' within the Swift store",
-        config = True
-        )
-    os_user_domain_name = Unicode('',
-        help="The 'domain' for the user within Swift",
-        config = True
-        )
-    os_username = Unicode('',
-        help="The username for connecting to the Swift system",
-        config = True
-        )
-    os_password = Unicode('',
-        help="The password for the user connecting to the Swift system",
-        config = True
-        )
-    # hard-coded values
-    os_identity_api_version = Unicode('3')
-    os_interface = Unicode('public')
+    ## Keystone has standardized on the term **project**
+    ## as the entity that owns the resources    
+    #os_auth_url = Unicode('',
+    #    help="OpenStack Authentication URL",
+    #    config = True
+    #)
+    #os_project_id = Unicode('',
+    #    help="ID for the 'project' within Swift",
+    #    config = True
+    #    )
+    #os_project_name = Unicode('',
+    #    help="name for the 'project' within the Swift store",
+    #    config = True
+    #    )
+    #os_region_name = Unicode('',
+    #    help="name for the 'region' within the Swift store",
+    #    config = True
+    #    )
+    #os_user_domain_name = Unicode('',
+    #    help="The 'domain' for the user within Swift",
+    #    config = True
+    #    )
+    #os_username = Unicode('',
+    #    help="The username for connecting to the Swift system",
+    #    config = True
+    #    )
+    #os_password = Unicode('',
+    #    help="The password for the user connecting to the Swift system",
+    #    config = True
+    #    )
+    ## hard-coded values
+    #os_identity_api_version = Unicode('3')
+    #os_interface = Unicode('public')
 
-    notebook_user = Unicode('test_account',
-        help="The user who's starting the notebook",
-        config = True
-        )
-    storage_url = Unicode('',
-        help="The base URL for containers",
-        config = True
-        )
+    #notebook_user = Unicode('test_account',
+    #    help="The user who's starting the notebook",
+    #    config = True
+    #    )
+    #storage_url = Unicode('',
+    #    help="The base URL for containers",
+    #    config = True
+    #    )
 
     #swift_connection = Any()
     #swift_connection = Instance(
@@ -66,62 +66,62 @@ class SwiftFS():
         super(SwiftFS, self).__init__(**kwargs)
         self.log = log
 
-        # With the python swift client, the connection is automagically
-        # created using environment variables (I know... horrible or what?)
-        # What this block does is just ensure that all the environment variables
-        # are set to the values we need for this user.
-        if self.os_auth_url:
-            os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
-        if self.os_project_id:
-            os.environ['OS_PROJECT_ID'] = str(self.os_project_id)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_id )
-        if self.os_project_name:
-            os.environ['OS_PROJECT_NAME'] = str(self.os_project_name)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_name )
-        if self.os_region_name:
-            os.environ['OS_REGION_NAME'] = str(self.os_region_name)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_region_name )
-        if self.os_user_domain_name:
-            os.environ['OS_USER_DOMAIN_NAME'] = str(self.os_user_domain_name)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_user_domain_name)
-        if self.os_username:
-            os.environ['OS_USERNAME'] = str(self.os_username)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_usernamel )
-        if self.os_password:
-            os.environ['OS_PASSWORD'] = str(self.os_password)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_password )
-        if self.os_identity_api_version:
-            os.environ['OS_IDENTITY_API_VERSION'] = str(self.os_identity_api_version)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_identity_api_version )
-        if self.os_interface:
-            os.environ['OS_INTERFACE'] = str(self.os_interface)
-            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_interface )
+        ## With the python swift client, the connection is automagically
+        ## created using environment variables (I know... horrible or what?)
+        ## What this block does is just ensure that all the environment variables
+        ## are set to the values we need for this user.
+        #if self.os_auth_url:
+        #    os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
+        #if self.os_project_id:
+        #    os.environ['OS_PROJECT_ID'] = str(self.os_project_id)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_id )
+        #if self.os_project_name:
+        #    os.environ['OS_PROJECT_NAME'] = str(self.os_project_name)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_name )
+        #if self.os_region_name:
+        #    os.environ['OS_REGION_NAME'] = str(self.os_region_name)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_region_name )
+        #if self.os_user_domain_name:
+        #    os.environ['OS_USER_DOMAIN_NAME'] = str(self.os_user_domain_name)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_user_domain_name)
+        #if self.os_username:
+        #    os.environ['OS_USERNAME'] = str(self.os_username)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_usernamel )
+        #if self.os_password:
+        #    os.environ['OS_PASSWORD'] = str(self.os_password)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_password )
+        #if self.os_identity_api_version:
+        #    os.environ['OS_IDENTITY_API_VERSION'] = str(self.os_identity_api_version)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_identity_api_version )
+        #if self.os_interface:
+        #    os.environ['OS_INTERFACE'] = str(self.os_interface)
+        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_interface )
 
-        # Ensure there's a container for this user
-        with SwiftService() as swift:
-            try:
-                list_parts_gen = swift.list(container=self.notebook_user)
-                for page in list_parts_gen:
-                    if not page["success"]:
-                        raise page["error"]
+        ## Ensure there's a container for this user
+        #with SwiftService() as swift:
+        #    try:
+        #        list_parts_gen = swift.list(container=self.notebook_user)
+        #        for page in list_parts_gen:
+        #            if not page["success"]:
+        #                raise page["error"]
 
-            except SwiftError as e:
-                logger.error(e.value)
-                auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
-                                   username=os.environ['OS_USERNAME'],
-                                   password=os.environ['OS_PASSWORD'],
-                                   user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
-                                   project_name=os.environ['OS_PROJECT_NAME'],
-                                   project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
-                keystone_session = session.Session(auth=auth)
-                #self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                #self.swift_connection.put_container(self.notebook_user)
+        #    except SwiftError as e:
+        #        logger.error(e.value)
+        #        auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
+        #                           username=os.environ['OS_USERNAME'],
+        #                           password=os.environ['OS_PASSWORD'],
+        #                           user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
+        #                           project_name=os.environ['OS_PROJECT_NAME'],
+        #                           project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
+        #        keystone_session = session.Session(auth=auth)
+        #        #self.swift_connection = swiftclient.client.Connection(session=keystone_session)
+        #        #self.swift_connection.put_container(self.notebook_user)
 
-        self.delimiter = "/"
+        #self.delimiter = "/"
 
-        if self.prefix:
-            self.mkdir("")
+        #if self.prefix:
+        #    self.mkdir("")
 
     def get_keys(self, prefix=""):
         ret = []
