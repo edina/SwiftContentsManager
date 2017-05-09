@@ -66,13 +66,13 @@ class SwiftFS():
         super(SwiftFS, self).__init__(**kwargs)
         self.log = log
 
-        ## With the python swift client, the connection is automagically
-        ## created using environment variables (I know... horrible or what?)
-        ## What this block does is just ensure that all the environment variables
-        ## are set to the values we need for this user.
-        #if self.os_auth_url:
-        #    os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
-        #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
+        # With the python swift client, the connection is automagically
+        # created using environment variables (I know... horrible or what?)
+        # What this block does is just ensure that all the environment variables
+        # are set to the values we need for this user.
+        if self.os_auth_url:
+            os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
+            self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_auth_url )
         #if self.os_project_id:
         #    os.environ['OS_PROJECT_ID'] = str(self.os_project_id)
         #    self.log.debug("SwiftContents[SwiftFS] exporting " + self.os_project_id )
