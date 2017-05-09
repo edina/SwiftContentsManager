@@ -14,37 +14,30 @@ class SwiftFS():
     # as the entity that owns the resources    
     os_auth_url = Unicode(
         help="OpenStack Authentication URL",
-        default_value = os.environ.get('OS_AUTH_URL'),
         config = True
     )
     os_project_id = Unicode(
         help="ID for the 'project' within Swift",
-        default_value = os.environ.get('OS_PROJECT_ID'),
         config = True
         )
     os_project_name = Unicode(
         help="name for the 'project' within the Swift store",
-        default_value = os.environ.get('OS_PROJECT_NAME', ''),
         config = True
         )
     os_region_name = Unicode(
         help="name for the 'region' within the Swift store",
-        default_value=os.environ.get('OS_REGION_NAME', ''),
         config = True
         )
     os_user_domain_name = Unicode(
         help="The 'domain' for the user within Swift",
-        default_value=os.environ.get('OS_USER_DOMAIN_NAME', ''),
         config = True
         )
     os_username = Unicode(
         help="The username for connecting to the Swift system",
-        default_value=os.environ.get('OS_USERNAME', ''),
         config = True
         )
     os_password = Unicode(
         help="The password for the user connecting to the Swift system",
-        default_value=os.environ.get('OS_PASSWORD', ''),
         config = True
         )
     # hard-coded values
@@ -75,15 +68,24 @@ class SwiftFS():
         # created using environment variables (I know... horrible or what?)
         # What this block does is just ensure that all the environment variables
         # are set to the values we need for this user.
-        os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
-        os.environ['OS_PROJECT_ID'] = str(os_project_id)
-        os.environ['OS_PROJECT_NAME'] = str(os_project_name)
-        os.environ['OS_REGION_NAME'] = str(os_region_name)
-        os.environ['OS_USER_DOMAIN_NAME'] = str(os_user_domain_name)
-        os.environ['OS_USERNAME'] = str(os_username)
-        os.environ['OS_PASSWORD'] = str(os_password)
-        os.environ['OS_IDENTITY_API_VERSION'] = str(os_identity_api_version)
-        os.environ['OS_INTERFACE'] = str(os_interface)
+        if self.os_auth_url:
+            os.environ['OS_AUTH_URL'] = str(self.os_auth_url)
+        if self.os_project_id:
+            os.environ['OS_PROJECT_ID'] = str(os_project_id)
+        if self.os_project_name:
+            os.environ['OS_PROJECT_NAME'] = str(os_project_name)
+        if self.os_region_name:
+            os.environ['OS_REGION_NAME'] = str(os_region_name)
+        if self.os_user_domain_name:
+            os.environ['OS_USER_DOMAIN_NAME'] = str(os_user_domain_name)
+        if self.os_username:
+            os.environ['OS_USERNAME'] = str(os_username)
+        if self.os_password:
+            os.environ['OS_PASSWORD'] = str(os_password)
+        if self.os_identity_api_version:
+            os.environ['OS_IDENTITY_API_VERSION'] = str(os_identity_api_version)
+        if self.os_interface:
+            os.environ['OS_INTERFACE'] = str(os_interface)
 
         # Ensure there's a container for this user
         with SwiftService() as swift:
