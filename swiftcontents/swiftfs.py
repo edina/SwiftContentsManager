@@ -16,42 +16,42 @@ class SwiftFS():
         help="OpenStack Authentication URL",
         config = True
     )
-    #os_project_id = Unicode('',
-    #    help="ID for the 'project' within Swift",
-    #    config = True
-    #    )
-    #os_project_name = Unicode('',
-    #    help="name for the 'project' within the Swift store",
-    #    config = True
-    #    )
-    #os_region_name = Unicode('',
-    #    help="name for the 'region' within the Swift store",
-    #    config = True
-    #    )
-    #os_user_domain_name = Unicode('',
-    #    help="The 'domain' for the user within Swift",
-    #    config = True
-    #    )
-    #os_username = Unicode('',
-    #    help="The username for connecting to the Swift system",
-    #    config = True
-    #    )
-    #os_password = Unicode('',
-    #    help="The password for the user connecting to the Swift system",
-    #    config = True
-    #    )
+    os_project_id = Unicode('',
+        help="ID for the 'project' within Swift",
+        config = True
+        )
+    os_project_name = Unicode('',
+        help="name for the 'project' within the Swift store",
+        config = True
+        )
+    os_region_name = Unicode('',
+        help="name for the 'region' within the Swift store",
+        config = True
+        )
+    os_user_domain_name = Unicode('',
+        help="The 'domain' for the user within Swift",
+        config = True
+        )
+    os_username = Unicode('',
+        help="The username for connecting to the Swift system",
+        config = True
+        )
+    os_password = Unicode('',
+        help="The password for the user connecting to the Swift system",
+        config = True
+        )
     # hard-coded values
     os_identity_api_version = Unicode('3')
     os_interface = Unicode('public')
 
-    #notebook_user = Unicode('test_account',
-    #    help="The user who's starting the notebook",
-    #    config = True
-    #    )
-    #storage_url = Unicode('',
-    #    help="The base URL for containers",
-    #    config = True
-    #    )
+    notebook_user = Unicode('test_account',
+        help="The user who's starting the notebook",
+        config = True
+        )
+    storage_url = Unicode('',
+        help="The base URL for containers",
+        config = True
+        )
 
     #swift_connection = Any()
     #swift_connection = Instance(
