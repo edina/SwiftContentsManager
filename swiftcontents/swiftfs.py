@@ -3,6 +3,7 @@ Utilities to make Swift look like a regular file system
 """
 import six
 import os
+import swiftclient
 from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
@@ -10,19 +11,16 @@ from traitlets import default, Unicode, Any, Instance
 
 class SwiftFS():
 
-    notebook_user = Unicode('test_account',
-        help="The user who's starting the notebook",
-        config = True
-        )
-    storage_url = Unicode('',
+    container = Unicode(os.environ.get('CONTAINER', 'demo'))
+    storage_url = Unicode(
         help="The base URL for containers",
-        config = True
+        default_value='http://example.com').tag(
+          config = True
         )
 
-    swift_connection = Any()
-    #swift_connection = Instance(
-    #    klass = 'swiftclient.client.Connection'
-    #    )
+    swift_connection = Instance(
+        klass = 'swiftclient.client.Connection'
+        )
 
     delimiter = Unicode("/", help="Path delimiter", config=True)
 
@@ -34,30 +32,21 @@ class SwiftFS():
 
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
-        # What this block does is just ensure that all the environment variables
-        # are set to the values we need for this user.
+        self.log.debug("SwiftContents[SwiftFS] container: `%s`", self.container)
 
-        ## Ensure there's a container for this user
-        #with SwiftService() as swift:
-        #    try:
-        #        list_parts_gen = swift.list(container=self.notebook_user)
-        #        for page in list_parts_gen:
-        #            if not page["success"]:
-        #                raise page["error"]
-
-        #    except SwiftError as e:
-        #        logger.error(e.value)
-        #        auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
-        #                           username=os.environ['OS_USERNAME'],
-        #                           password=os.environ['OS_PASSWORD'],
-        #                           user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
-        #                           project_name=os.environ['OS_PROJECT_NAME'],
-        #                           project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
-        #        keystone_session = session.Session(auth=auth)
-        #        #self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-        #        #self.swift_connection.put_container(self.notebook_user)
-
-        #self.delimiter = "/"
+        # Ensure there's a container for this user
+        with SwiftService() as swift:
+            stat_it = swift.stat( container=self.container )
+            if not stat_it["success"]:
+                auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
+                                   username=os.environ['OS_USERNAME'],
+                                   password=os.environ['OS_PASSWORD'],
+                                   user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
+                                   project_name=os.environ['OS_PROJECT_NAME'],
+                                   project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
+                keystone_session = session.Session(auth=auth)
+                self.swift_connection = swiftclient.client.Connection(session=keystone_session)
+                self.swift_connection.put_container(self.notebook_user)
 
         #if self.prefix:
         #    self.mkdir("")
