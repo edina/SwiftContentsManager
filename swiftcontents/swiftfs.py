@@ -7,7 +7,7 @@ import swiftclient
 from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
-from traitlets import default, Unicode, Any, Instance
+from traitlets import default, HasTraits, Unicode, Any, Instance
 
 class SwiftFS(HasTraits):
 
@@ -46,7 +46,7 @@ class SwiftFS(HasTraits):
                                    project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
                 keystone_session = session.Session(auth=auth)
                 self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                self.swift_connection.put_container(self.notebook_user)
+                self.swift_connection.put_container(self.container)
 
         #if self.prefix:
         #    self.mkdir("")
