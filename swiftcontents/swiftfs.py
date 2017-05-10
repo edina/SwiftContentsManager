@@ -9,7 +9,7 @@ from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, Unicode, Any, Instance
 
-class SwiftFS():
+class SwiftFS(HasTraits):
 
     container = Unicode(os.environ.get('CONTAINER', 'demo'))
     storage_url = Unicode(
