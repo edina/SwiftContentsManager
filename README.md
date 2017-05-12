@@ -33,10 +33,8 @@ Each file is just an object in the store, and objects are refered to with a reso
 * There's just one account that authenticates to Swift
 * Each notebook user (well, `uuid`, probably obfuscated) has their own container
 * Each user is is responsible for organising their own data
-* A directory is just an object path with more path after it:
-
-    {base_url}/images/flowers
-    {base_url}/images/flowers/rose.jpg
+* A directory is just an object whos path ends in a slash: `/images/flowers/`
+* A file is just an object whos path does **not** end in a slash: `/images/flowers/rose.jpg`
 
 ### Further info
 
