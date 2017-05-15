@@ -88,6 +88,9 @@ class SwiftFS(HasTraits):
     def write(self, path, content):
         key = self.as_key(path)
 
+    def _check_exists(self, path):
+        stat_it = SwiftService.stat( container=self.container, object=path )
+
 
 
 class SwiftFSError(Exception):
