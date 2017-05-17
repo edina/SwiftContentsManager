@@ -11,54 +11,18 @@ from swiftcontents.ipycompat import ContentsManager
 
 class SwiftContentsManager(ContentsManager):
 
+    # Initialise the instance
     def __init__(self, *args, **kwargs):
         super(SwiftContentsManager, self).__init__(*args, **kwargs)
         self.swiftfs = SwiftFS(log=self.log)
 
-    def _checkpoints_class_default(self):
-        return GenericFileCheckpoints
-
-    def do_error(self, msg, code=500):
-        raise HTTPError(code, msg)
-
-    def no_such_entity(self, path):
-        self.do_error("No such entity: [{path}]".format(path=path), 404)
-
-    def already_exists(self, path):
-        thing = "File" if self.file_exists(path) else "Directory"
-        self.do_error(u"{thing} already exists: [{path}]".format(thing=thing, path=path), 409)
-
-    def guess_type(self, path, allow_directory=True):
-        """
-        Guess the type of a file.
-        If allow_directory is False, don't consider the possibility that the
-        file is a directory.
-
-        Parameters
-        ----------
-            obj: s3.Object or string
-        """
-        if path.endswith(".ipynb"):
-            return "notebook"
-        elif allow_directory and self.dir_exists(path):
-            return "directory"
-        else:
-            return "file"
-
-    def file_exists(self, path):
-        # Does a file exist at the given path?
-        self.log.debug("SwiftContents[swiftmanager]: file_exists '%s'", path)
-        return self.swiftfs.isfile(path)
-
-    def dir_exists(self, path):
-        # Does a directory exist at the given path?
-        self.log.debug("SwiftContents[swiftmanager]: dir_exists '%s'", path)
-        return self.swiftfs.isdir(path)
+    # These are the methods needed by a 'ContentsManager'
+    ###########
 
     def get(self, path, content=True, type=None, format=None):
-        # Get a file or directory model.
+        """Retrieve an object from the store, named in 'path'
+        """
         self.log.debug("SwiftContents[swiftmanager]: get '%s' %s %s", path, type, format)
-        path = path.strip('/')
 
         if type is None:
             type = self.guess_type(path)
@@ -72,6 +36,90 @@ class SwiftContentsManager(ContentsManager):
             raise ValueError("Unknown type passed: '{}'".format(type))
 
         return func(path=path, content=content, format=format)
+
+    def save(self, model, path):
+        """Save a file or directory model to path.
+        """
+        self.log.debug("SwiftContents[swiftmanager]: save %s: '%s'", model, path)
+        if "type" not in model:
+            self.do_error("No model type provided", 400)
+        if "content" not in model and model["type"] != "directory":
+            self.do_error("No file content provided", 400)
+
+        if model["type"] not in ("file", "directory", "notebook"):
+            self.do_error("Unhandled contents type: %s" % model["type"], 400)
+
+        try:
+            if model["type"] == "notebook":
+                validation_message = self._save_notebook(model, path)
+            elif model["type"] == "file":
+                validation_message = self._save_file(model, path)
+            else:
+                validation_message = self._save_directory(path)
+        except Exception as e:
+            self.log.error("Error while saving file: %s %s", path, e, exc_info=True)
+            self.do_error("Unexpected error while saving file: %s %s" % (path, e), 500)
+
+        model = self.get(path, type=model["type"], content=False)
+        if validation_message is not None:
+            model["message"] = validation_message
+        return model
+
+    def delete_file(self, path):
+        """Delete the file or directory at path.
+        """
+        self.log.debug("SwiftContents[swiftmanager]: delete_file '%s'", path)
+        if self.file_exists(path) or self.dir_exists(path):
+            self.swiftfs.rm(path)
+        else:
+            self.no_such_entity(path)
+
+    def rename_file(self, old_path, new_path):
+        """Rename a file or directory.
+
+        NOTE: This method is unfortunately named on the base class.  It
+        actually moves a file or a directory.
+        """
+        self.log.debug("SwiftContents[swiftmanager]: Init rename of '%s' to '%s'", old_path, new_path)
+        if self.file_exists(new_path) or self.dir_exists(new_path):
+            self.already_exists(new_path)
+        elif self.file_exists(old_path) or self.dir_exists(old_path):
+            self.log.debug("SwiftContents[swiftmanager]: Actually renaming '%s' to '%s'", old_path,
+                           new_path)
+            self.swiftfs.mv(old_path, new_path)
+        else:
+            self.no_such_entity(old_path)
+
+    def file_exists(self, path):
+        self.log.debug("SwiftContents[swiftmanager]: file_exists '%s'", path)
+        return self.swiftfs.isfile(path)
+
+    def dir_exists(self, path):
+        self.log.debug("SwiftContents[swiftmanager]: dir_exists '%s'", path)
+        return self.swiftfs.isdir(path)
+
+    # Swift doesn't do "hidden" files, so this always returns False
+    def is_hidden(self, path):
+        """Is path a hidden directory or file?
+        """
+        self.log.debug("SwiftContents[swiftmanager]: is_hidden '%s'", path)
+        return False
+
+    # .... and these are all support methods
+    ############
+
+    def guess_type(self, path):
+        return "directory" if path.endswith('/') else super(ContentsManager, self).guess_type(path)
+
+    def do_error(self, msg, code=500):
+        raise HTTPError(code, msg)
+
+    def no_such_entity(self, path):
+        self.do_error("No such entity: [{path}]".format(path=path), 404)
+
+    def already_exists(self, path):
+        thing = "File" if self.file_exists(path) else "Directory"
+        self.do_error(u"{thing} already exists: [{path}]".format(thing=thing, path=path), 409)
 
     def _get_directory(self, path, content=True, format=None):
         self.log.debug("SwiftContents[swiftmanager]: get_directory '%s' %s %s", path, type, format)
@@ -128,7 +176,7 @@ class SwiftContentsManager(ContentsManager):
                 content = self.swiftfs.read(path)
             except NoSuchFile as e:
                 self.no_such_entity(e.path)
-            except S3FSError as e:
+            except SwiftFSError as e:
                 self.do_error(str(e), 500)
             model["format"] = format or "text"
             model["content"] = content
@@ -141,7 +189,7 @@ class SwiftContentsManager(ContentsManager):
 
     def _convert_file_records(self, paths):
         """
-        Applies _notebook_model_from_s3_path or _file_model_from_s3_path to each entry of `paths`,
+        Applies _notebook_model_from_swift_path or _file_model_from_swift_path to each entry of `paths`,
         depending on the result of `guess_type`.
         """
         ret = []
@@ -160,34 +208,6 @@ class SwiftContentsManager(ContentsManager):
                 self.do_error("Unknown file type %s for file '%s'" % (type_, path), 500)
         return ret
 
-    def save(self, model, path):
-        """Save a file or directory model to path.
-        """
-        self.log.debug("SwiftContents[swiftmanager]: save %s: '%s'", model, path)
-        if "type" not in model:
-            self.do_error("No model type provided", 400)
-        if "content" not in model and model["type"] != "directory":
-            self.do_error("No file content provided", 400)
-
-        if model["type"] not in ("file", "directory", "notebook"):
-            self.do_error("Unhandled contents type: %s" % model["type"], 400)
-
-        try:
-            if model["type"] == "notebook":
-                validation_message = self._save_notebook(model, path)
-            elif model["type"] == "file":
-                validation_message = self._save_file(model, path)
-            else:
-                validation_message = self._save_directory(path)
-        except Exception as e:
-            self.log.error("Error while saving file: %s %s", path, e, exc_info=True)
-            self.do_error("Unexpected error while saving file: %s %s" % (path, e), 500)
-
-        model = self.get(path, type=model["type"], content=False)
-        if validation_message is not None:
-            model["message"] = validation_message
-        return model
-
     def _save_notebook(self, model, path):
         nb_contents = from_dict(model['content'])
         self.check_and_sign(nb_contents, path)
@@ -203,38 +223,8 @@ class SwiftContentsManager(ContentsManager):
     def _save_directory(self, path):
         self.swiftfs.mkdir(path)
 
-    def rename_file(self, old_path, new_path):
-        """Rename a file or directory.
 
-        NOTE: This method is unfortunately named on the base class.  It
-        actually moves a file or a directory.
-        """
-        self.log.debug("SwiftContents[swiftmanager]: Init rename of '%s' to '%s'", old_path, new_path)
-        if self.file_exists(new_path) or self.dir_exists(new_path):
-            self.already_exists(new_path)
-        elif self.file_exists(old_path) or self.dir_exists(old_path):
-            self.log.debug("SwiftContents[swiftmanager]: Actually renaming '%s' to '%s'", old_path,
-                           new_path)
-            self.swiftfs.mv(old_path, new_path)
-        else:
-            self.no_such_entity(old_path)
-
-    def delete_file(self, path):
-        """Delete the file or directory at path.
-        """
-        self.log.debug("SwiftContents[swiftmanager]: delete_file '%s'", path)
-        if self.file_exists(path) or self.dir_exists(path):
-            self.swiftfs.rm(path)
-        else:
-            self.no_such_entity(path)
-
-    def is_hidden(self, path):
-        """Is path a hidden directory or file?
-        """
-        self.log.debug("SwiftContents[swiftmanager]: is_hidden '%s'", path)
-        return False
-
-
+## Ian: is the path/name thing right? Directories have no name?
 def base_model(path):
     return {
         "name": path.rsplit('/', 1)[-1],

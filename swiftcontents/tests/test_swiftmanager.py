@@ -1,38 +1,31 @@
-from s3contents.ipycompat import TestContentsManager
+import os
 
-from s3contents import S3ContentsManager
+from swiftcontents.ipycompat import TestContentsManager
 
+from swiftcontents import SwiftContentsManager
 
-class S3ContentsManagerTestCase(TestContentsManager):
+class SwiftContentsManagerTestCase(TestContentsManager):
 
     def setUp(self):
         """
-        This setup is a hardcoded to the use a little minio server that run on travis CI or play.minio.io:9000
+        Note: this test requires a bunch of environment variables set, and
+        is written to work in a Docker image, against the UofE 'Horizon' server
         """
-        self.contents_manager = S3ContentsManager(
-            access_key_id="Q3AM3UQ867SPQQA43P2F",
-            secret_access_key="zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG",
-            endpoint_url="http://localhost:9000",
-            bucket_name="notebooks",
-    # endpoint_url="https://play.minio.io:9000",
-    # bucket_name="s3contents-test2",
-            signature_version="s3v4")
+        print( "OS_AUTH_URL is %S" , os.environ['OS_AUTH_URL'])
+        print( "OS_USERNAME is %S" , os.environ['OS_USERNAME'])
+        print( "OS_PASSWORD is %S" , os.environ['OS_PASSWORD'])
+        print( "OS_USER_DOMAIN_NAME is %S" , os.environ['OS_USER_DOMAIN_NAME'])
+        print( "OS_PROJECT_NAME is %S" , os.environ['OS_PROJECT_NAME'])
+        self.contents_manager = SwiftContentsManager()
 
     def tearDown(self):
-        bucket = self.contents_manager.s3fs.bucket
-
-        objects_to_delete = []
-        for obj in bucket.objects.filter(Prefix=""):
-            objects_to_delete.append({"Key": obj.key})
-
-        bucket.delete_objects(Delete={"Objects": objects_to_delete})
-
+        pass
     # Overwrites from TestContentsManager
 
-    def make_dir(self, api_path):
-        self.contents_manager.new(
-            model={"type": "directory"},
-            path=api_path,)
+    #def make_dir(self, api_path):
+        #self.contents_manager.new(
+        #    model={"type": "directory"},
+        #    path=api_path,)
 
 
 # This needs to be removed or else we'll run the main IPython tests as well.
