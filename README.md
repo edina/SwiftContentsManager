@@ -1,14 +1,11 @@
 
-[![Build Status](https://travis-ci.org/danielfrg/SwiftContents.svg?branch=master)](https://travis-ci.org/danielfrg/SwiftContents)
-[![Coverage Status](https://coveralls.io/repos/github/danielfrg/SwiftContents/badge.svg?branch=master)](https://coveralls.io/github/danielfrg/SwiftContents?branch=master)
-
 # SwiftContents
 
-A backed ContentsManager implementation for Jupyter which writes data to the Swift impliemtnation on OpenStack.
+A back-end ContentsManager implementation for Jupyter which writes data to the Swift impliemtnation on OpenStack.
 
 It aims to a be a transparent, drop-in replacement for Jupyter standard filesystem-backed storage system.
 With this implementation of a Jupyter Contents Manager you can save all your notebooks, regular files, directories
-structure directly to OpenStack Volumes
+structure directly to an OpenStack Volume
 
 While there are some implementations for S3 functionality already available online [2] I was unable to find something for Swift.
 
@@ -48,7 +45,7 @@ My main reference for `ContentsManager` has been http://jupyter-notebook.readthe
 * `ContentsManager.rename_file` => `swift.copy(container, ["a"], ["b"])`
 * `ContentsManager.file_exists` => `swift.stat(container=container, objects=objects)` - ensure there's no longer path (?somehow?)
 * `ContentsManager.dir_exists` => (as `file_exists`)
-* `ContentsManager.is_hidden` => (we can't hide files.. _always returns false_
+* `ContentsManager.is_hidden` => (we can't hide files.. _always returns false_ )
 
 ## Prerequisites
 
@@ -57,24 +54,59 @@ Write access (valid credentials) to an OpenStack system, with existing Volumes.
 ## Installation
 
 ```
-$ pip install swiftcontents
+$ git clone https://github.com/edina/SwiftContentsManager.git
+$ cd SwiftContentsmanager
+$ pip install -r requirements.txt
+$ pip install .
 ```
 
-## Jupyter config
+## Testing
+Testing has been written to run in a Docker Container - thus be an isolated environment
 
-Edit `~/.jupyter/jupyter_notebook_config.py` by filling the missing values:
-
-```python
-from swiftcontents import SwiftContentsManager
-
-c = get_config()
-
-# Tell Jupyter to use SwiftContentsManager for all storage.
-c.NotebookApp.contents_manager_class = SwiftContentsManager
-c.SwiftContentsManager.access_key_id = <AWS Access Key ID / IAM Access Key ID>
-c.SwiftContentsManager.secret_access_key = <AWS Secret Access Key / IAM Secret Access Key>
-c.SwiftContentsManager.bucket_name = "<>"
 ```
+docker build -t naas/swifttest .
+docker run --rm -it -e OS_AUTH_URL='https://keystone.ecdf.ed.ac.uk/v3' \
+-e OS_PROJECT_ID='0edbdcab2cda436a90ab73a26b77c83e' \
+-e OS_PROJECT_NAME='edina' \
+-e OS_REGION_NAME='edina' \
+-e OS_USER_DOMAIN_NAME='ed' \
+-e OS_USERNAME='jupyter' \
+-e OS_PASSWORD='edina123' \
+-e OS_IDENTITY_API_VERSION='v3' \
+-e OS_INTERFACE='public' naas/swifttest
+```
+### Testing whilst developing
+
+Change the `docker run` command to include a _volume_:
+
+```
+docker run --rm -it -e OS_AUTH_URL='https://keystone.ecdf.ed.ac.uk/v3' \
+-e OS_PROJECT_ID='0edbdcab2cda436a90ab73a26b77c83e' \
+-e OS_PROJECT_NAME='edina' \
+-e OS_REGION_NAME='edina' \
+-e OS_USER_DOMAIN_NAME='ed' \
+-e OS_USERNAME='jupyter' \
+-e OS_PASSWORD='edina123' \
+-e OS_IDENTITY_API_VERSION='v3' \
+-e OS_INTERFACE='public' \
+-v $(realpath .):/home/jovyan/work/SwiftContentsManager naas/swifttest /bin/bash
+```
+
+and this means you can run tests with extra parameters:
+
+```
+py.test -v --debug swiftcontents/tests/test_swiftmanager.py > debug.out 2>&1
+```
+(and you can review `debug.out` on your local workstation disk)
+
+or even edit the code locally and re-install it:
+
+```
+pip uninstall swiftcontentsmanager
+pip install .
+```
+
+to update the installed code on the Docker & re-run the tests
 
 ## See also
 

@@ -20,7 +20,8 @@ class SwiftContentsManager(ContentsManager):
     ###########
 
     def get(self, path, content=True, type=None, format=None):
-        # Get a file or directory model.
+        """Retrieve an object from the store, named in 'path'
+        """
         self.log.debug("SwiftContents[swiftmanager]: get '%s' %s %s", path, type, format)
 
         if type is None:
@@ -175,7 +176,7 @@ class SwiftContentsManager(ContentsManager):
                 content = self.swiftfs.read(path)
             except NoSuchFile as e:
                 self.no_such_entity(e.path)
-            except S3FSError as e:
+            except SwiftFSError as e:
                 self.do_error(str(e), 500)
             model["format"] = format or "text"
             model["content"] = content

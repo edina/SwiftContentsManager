@@ -51,23 +51,42 @@ class SwiftFS(HasTraits):
         #if self.prefix:
         #    self.mkdir("")
 
-    def get_keys(self, prefix=""):
-        ret = []
-        for obj in self.bucket.objects.filter(Prefix=prefix):
-            ret.append(obj.key)
-        return ret
-
-    def listdir(self, path="", with_prefix=False):
+    # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
+    # Returns a list of dictionaries
+    def listdir(self, path=""):
         self.log.debug("SwiftContents[SwiftFS] Listing directory: `%s`", path)
-        #return map(self.as_path, files)
+        files = []
+        with SwiftService() as swift:
+          try:
+            dir_listing = swift.list(container=container, prefix=path)
+            for page in dir_listing:  # each page is up to 10,000 items
+              if page["success"]:
+                files.append( page["listing"] )
+              else:
+                raise page["error"]
+          except SwiftError as e:
+            self.log.error(e.value)
+        return files
 
     def isfile(self, path):
         self.log.debug("SwiftContents[SwiftFS] Checking if `%s` is a file", path)
-        #return is_file
+        if self._check_exists(path):
+          if path.endswith('/'):
+            return False
+          else:
+            return True
+        else:
+          return False
 
     def isdir(self, path):
         self.log.debug("SwiftContents[SwiftFS] Checking if `%s` is a directory", path)
-        #return is_dir
+        if self._check_exists(path):
+          if path.endswith('/'):
+            return True 
+          else:
+            return False
+        else:
+          return False
 
     def mv(self, old_path, new_path):
         self.cp(old_path, new_path)
@@ -89,7 +108,21 @@ class SwiftFS(HasTraits):
         key = self.as_key(path)
 
     def _check_exists(self, path):
-        stat_it = SwiftService.stat( container=self.container, object=path )
+        self.log.debug("SwiftContents[SwiftFS] _check_exists looking for `%s`", path)
+        success = True
+        if path is None:
+          path = 'test/'
+        with SwiftService() as swift:
+            stat_it = swift.stat( container=self.container, objects=[path] )
+            for stat_res in stat_it:
+                if stat_res['success']:
+                    header_data[stat_res['object']] = stat_res['headers']
+                else:
+                    self.log.error(
+                        'Failed to retrieve stats for %s' % stat_res['object']
+                    )
+                    success=False
+        return success
 
 
 
