@@ -1,4 +1,7 @@
 
+[![Build Status](https://travis-ci.org/danielfrg/SwiftContents.svg?branch=master)](https://travis-ci.org/danielfrg/SwiftContents)
+[![Coverage Status](https://coveralls.io/repos/github/danielfrg/SwiftContents/badge.svg?branch=master)](https://coveralls.io/github/danielfrg/SwiftContents?branch=master)
+
 # SwiftContents
 
 A back-end ContentsManager implementation for Jupyter which writes data to the Swift impliemtnation on OpenStack.
