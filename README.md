@@ -67,7 +67,7 @@ docker build -t naas/swifttest .
 docker run --rm -it -e OS_AUTH_URL='https://keystone.ecdf.ed.ac.uk/v3' \
 -e OS_PROJECT_ID='0edbdcab2cda436a90ab73a26b77c83e' \
 -e OS_PROJECT_NAME='edina' \
--e OS_REGION_NAME='edina' \
+-e OS_REGION_NAME='Edinburgh' \
 -e OS_USER_DOMAIN_NAME='ed' \
 -e OS_USERNAME='jupyter' \
 -e OS_PASSWORD='edina123' \
@@ -82,7 +82,7 @@ Change the `docker run` command to include a _volume_:
 docker run --rm -it -e OS_AUTH_URL='https://keystone.ecdf.ed.ac.uk/v3' \
 -e OS_PROJECT_ID='0edbdcab2cda436a90ab73a26b77c83e' \
 -e OS_PROJECT_NAME='edina' \
--e OS_REGION_NAME='edina' \
+-e OS_REGION_NAME='Edinburgh' \
 -e OS_USER_DOMAIN_NAME='ed' \
 -e OS_USERNAME='jupyter' \
 -e OS_PASSWORD='edina123' \
@@ -94,7 +94,11 @@ docker run --rm -it -e OS_AUTH_URL='https://keystone.ecdf.ed.ac.uk/v3' \
 and this means you can run tests with extra parameters:
 
 ```
-py.test -v --debug swiftcontents/tests/test_swiftmanager.py > debug.out 2>&1
+py.test --debug swiftcontents/tests/test_swiftmanager.py > debug.out 2>&1
+```
+or
+```
+nosetests --logging-level=DEBUG swiftcontents/tests/test_swiftmanager.py > debug.out 2>&1
 ```
 (and you can review `debug.out` on your local workstation disk)
 
