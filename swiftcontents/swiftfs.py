@@ -8,6 +8,7 @@ from swiftclient.service import SwiftService, SwiftError
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, HasTraits, Unicode, Any, Instance
+from pprint import pprint
 
 class SwiftFS(HasTraits):
 
@@ -29,24 +30,30 @@ class SwiftFS(HasTraits):
     def __init__(self, log, **kwargs):
         super(SwiftFS, self).__init__(**kwargs)
         self.log = log
+        self.log.debug("SwiftContents[SwiftFS] container: `%s`", self.container)
 
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
-        self.log.debug("SwiftContents[SwiftFS] container: `%s`", self.container)
 
         # Ensure there's a container for this user
         with SwiftService() as swift:
+          try:
             stat_it = swift.stat( container=self.container )
-            if not stat_it["success"]:
-                auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
-                                   username=os.environ['OS_USERNAME'],
-                                   password=os.environ['OS_PASSWORD'],
-                                   user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
-                                   project_name=os.environ['OS_PROJECT_NAME'],
-                                   project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
-                keystone_session = session.Session(auth=auth)
-                self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                self.swift_connection.put_container(self.container)
+            if stat_it["success"]:
+              self.log.debug("SwiftContents[SwiftFS] container `%s` exists", self.container)
+          except SwiftError as e:
+            self.log.error("SwiftFS.listdir %s", e.value)
+            auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
+                               username=os.environ['OS_USERNAME'],
+                               password=os.environ['OS_PASSWORD'],
+                               user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
+                               project_name=os.environ['OS_PROJECT_NAME'],
+                               project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
+            keystone_session = session.Session(auth=auth)
+            self.swift_connection = swiftclient.client.Connection(session=keystone_session)
+            self.log.debug("SwiftContents[SwiftFS] container `%s` does not exist, making it", self.container)
+            self.swift_connection.put_container(self.container)
+            self.log.debug("SwiftContents[SwiftFS] container `%s` made", self.container)
 
         #if self.prefix:
         #    self.mkdir("")
@@ -54,7 +61,7 @@ class SwiftFS(HasTraits):
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
     # Returns a list of dictionaries
     def listdir(self, path=""):
-        self.log.debug("SwiftContents[SwiftFS] Listing directory: `%s`", path)
+        self.log.debug("SwiftFS.listdir Listing directory: `%s`", path)
         files = []
         with SwiftService() as swift:
           try:
@@ -65,65 +72,74 @@ class SwiftFS(HasTraits):
               else:
                 raise page["error"]
           except SwiftError as e:
-            self.log.error(e.value)
+            self.log.error("SwiftFS.listdir %s", e.value)
         return files
 
+    # We can 'stat' files, but not directories
     def isfile(self, path):
-        self.log.debug("SwiftContents[SwiftFS] Checking if `%s` is a file", path)
-        if self._check_exists(path):
-          if path.endswith('/'):
-            return False
-          else:
-            return True
-        else:
-          return False
+        self.log.debug("SwiftFS.isfile Checking if `%s` is a file", path)
+        with SwiftService() as swift:
+          try:
+            stat_it = swift.stat( container=self.container, objects=[path] )
+            for stat_res in stat_it:
+              if stat_res['success']:
+                return True
+              else:
+                self.log.error(
+                  'Failed to retrieve stats for %s' % stat_res['object']
+                )
+                return False
+          except SwiftError as e:
+            self.log.error("SwiftFS.isfile %s", e.value)
+        return False
 
+    # We can 'list' direcotries, but not 'stat' them
     def isdir(self, path):
-        self.log.debug("SwiftContents[SwiftFS] Checking if `%s` is a directory", path)
-        if self._check_exists(path):
-          if path.endswith('/'):
-            return True 
-          else:
-            return False
-        else:
-          return False
+        self.log.debug("SwiftFS.isdir Checking if `%s` is a directory", path)
+
+        # Root directory checks
+        if path == "":  # effectively root directory
+          return True
+        if not path.endswith(self.delimiter):
+            path = path + self.delimiter
+        if path == "":
+            return True
+
+        count = 0
+        with SwiftService() as swift:
+          try:
+            options = { 'prefix' : path }
+            response = swift.list( container=self.container, options=options )
+            for page in response:
+              if page['success']:
+                count = 1
+                pprint(page['listing'])
+          except SwiftError as e:
+            self.log.error("SwiftFS.isdir %s", e.value)
+        return count
+
+
 
     def mv(self, old_path, new_path):
         self.cp(old_path, new_path)
         self.rm(old_path)
 
     def cp(self, old_path, new_path):
-        self.log.debug("SwiftContents[SwiftFS] Copy `%s` to `%s`", old_path, new_path)
+        self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
 
     def rm(self, path):
-        self.log.debug("SwiftContents[SwiftFS] Deleting: `%s`", path)
+        self.log.debug("SwiftFS.rm `%s`", path)
 
     def mkdir(self, path):
-        self.log.debug("SwiftContents[SwiftFS] Making dir: `%s`", path)
+        self.log.debug("SwiftFS.mkdir `%s`", path)
 
     def read(self, path):
-        return path #text
+        self.log.debug("SwiftFS.read `%s`", path)
+        return 'Hello world'
 
     def write(self, path, content):
-        key = self.as_key(path)
-
-    def _check_exists(self, path):
-        self.log.debug("SwiftContents[SwiftFS] _check_exists looking for `%s`", path)
-        success = True
-        if path is None:
-          path = 'test/'
-        with SwiftService() as swift:
-            stat_it = swift.stat( container=self.container, objects=[path] )
-            for stat_res in stat_it:
-                if stat_res['success']:
-                    header_data[stat_res['object']] = stat_res['headers']
-                else:
-                    self.log.error(
-                        'Failed to retrieve stats for %s' % stat_res['object']
-                    )
-                    success=False
-        return success
-
+        self.log.debug("SwiftFS.write `%s`", path)
+        
 
 
 class SwiftFSError(Exception):

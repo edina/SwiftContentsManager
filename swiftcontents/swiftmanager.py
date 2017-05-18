@@ -2,12 +2,16 @@ import os
 import json
 import mimetypes
 from datetime import datetime
-
+from pprint import pprint
 from tornado.web import HTTPError
 from traitlets import default, Unicode, List
 
 from swiftcontents.swiftfs import SwiftFS, SwiftFSError, NoSuchFile
 from swiftcontents.ipycompat import ContentsManager
+from swiftcontents.ipycompat import from_dict
+
+DUMMY_CREATED_DATE = datetime.now( )
+NBFORMAT_VERSION = 4
 
 class SwiftContentsManager(ContentsManager):
 
@@ -108,18 +112,32 @@ class SwiftContentsManager(ContentsManager):
     # .... and these are all support methods
     ############
 
-    def guess_type(self, path):
-        return "directory" if path.endswith('/') else super(ContentsManager, self).guess_type(path)
+    def guess_type(self, path, allow_directory=True):
+        """
+        Guess the type of a file.
+        If allow_directory is False, don't consider the possibility that the
+        file is a directory.
+
+        Parameters
+        ----------
+            obj: s3.Object or string
+        """
+        if path.endswith(".ipynb"):
+            return "notebook"
+        elif allow_directory and self.dir_exists(path):
+            return "directory"
+        else:
+            return "file"
 
     def do_error(self, msg, code=500):
         raise HTTPError(code, msg)
 
     def no_such_entity(self, path):
-        self.do_error("No such entity: [{path}]".format(path=path), 404)
+        self.do_error("SwiftContents[swiftmanager] No such entity: [{path}]".format(path=path), 404)
 
     def already_exists(self, path):
         thing = "File" if self.file_exists(path) else "Directory"
-        self.do_error(u"{thing} already exists: [{path}]".format(thing=thing, path=path), 409)
+        self.do_error(u"SwiftContents[swiftmanager] {thing} already exists: [{path}]".format(thing=thing, path=path), 409)
 
     def _get_directory(self, path, content=True, format=None):
         self.log.debug("SwiftContents[swiftmanager]: get_directory '%s' %s %s", path, type, format)
@@ -148,12 +166,14 @@ class SwiftContentsManager(ContentsManager):
         """
         Build a notebook model from database record.
         """
+        self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path '%s' %s", path, content)
         # path = to_api_path(record['parent_name'] + record['name'])
         model = base_model(path)
         model['type'] = 'notebook'
         # model['last_modified'] = model['created'] = record['created_at']
         model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
         if content:
+            self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path has content")
             if not self.swiftfs.isfile(path):
                 self.no_such_entity(path)
             file_content = self.swiftfs.read(path)
@@ -162,6 +182,10 @@ class SwiftContentsManager(ContentsManager):
             model["format"] = "json"
             model["content"] = nb_content
             self.validate_notebook_model(model)
+        else:
+            self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path has **no** content")
+
+        self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path returning %s", pprint(model) )    
         return model
 
     def _file_model_from_path(self, path, content=False, format=None):
@@ -224,7 +248,6 @@ class SwiftContentsManager(ContentsManager):
         self.swiftfs.mkdir(path)
 
 
-## Ian: is the path/name thing right? Directories have no name?
 def base_model(path):
     return {
         "name": path.rsplit('/', 1)[-1],
