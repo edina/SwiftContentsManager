@@ -5,7 +5,8 @@ import six
 import os
 import swiftclient
 import io
-from swiftclient.service import SwiftService, SwiftError, SwiftUploadObject
+import re
+from swiftclient.service import SwiftService, SwiftError, SwiftCopyObject, SwiftUploadObject
 from swiftclient.multithreading import OutputManager
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
@@ -27,7 +28,7 @@ class SwiftFS(HasTraits):
 
     delimiter = Unicode("/", help="Path delimiter", config=True)
 
-    root_dir = Unicode("./", config=True)
+    root_dir = Unicode("/", config=True)
 
     def __init__(self, log, **kwargs):
         super(SwiftFS, self).__init__(**kwargs)
@@ -65,6 +66,7 @@ class SwiftFS(HasTraits):
     def listdir(self, path=""):
         self.log.debug("SwiftFS.listdir Listing directory: `%s`", path)
         files = []
+        path = self.clean_path(path)
         with SwiftService() as swift:
           try:
             _opts = {'prefix' : path}
@@ -81,8 +83,7 @@ class SwiftFS(HasTraits):
     # We can 'stat' files, but not directories
     def isfile(self, path):
         self.log.debug("SwiftFS.isfile Checking if `%s` is a file", path)
-        # strip of any leading '/'
-        #path = path.lstrip('/')
+        path = self.clean_path(path)
 
         self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
         with SwiftService() as swift:
@@ -106,26 +107,28 @@ class SwiftFS(HasTraits):
     # We can 'list' direcotries, but not 'stat' them
     def isdir(self, path):
         self.log.debug("SwiftFS.isdir Checking if `%s` is a directory", path)
+        path = self.clean_path(path)
 
         # directories mush have a trailing slash on them.
         # The core code seems to remove any trailing slash, so lets add it back on
-        path = path.rstrip('/')
-        path = path + '/'
+        path = path.rstrip( self.delimiter)
+        path = path + self.delimiter
 
         # Root directory checks
-        if path == "/":  # effectively root directory
-          self.log.debug("SwiftFS.isdir returning True")
+        if path == self.delimiter:  # effectively root directory
+          self.log.debug("SwiftFS.isdir found root dir - returning True")
           return True
 
         count = 0
         with SwiftService() as swift:
           try:
-            options = { 'prefix' : path }
-            response = swift.list( container=self.container, options=options )
+            _opts = {}
+            if re.search('\w', path):
+              _opts = { 'prefix' : path }
+            response = swift.list( container=self.container, options=_opts )
             for r in response:
               if r['success']:
                 count = 1
-                #pprint(r['listing'])
           except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
         self.log.debug("SwiftFS.isdir returning the number '%s'", count)
@@ -139,11 +142,36 @@ class SwiftFS(HasTraits):
 
     def cp(self, old_path, new_path):
         self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
+        old_path = self.clean_path(old_path)
+        new_path = self.clean_path(new_path)
+        with SwiftService() as swift:
+          try:
+            _obj = SwiftCopyObject(old_path, 
+                                   {"Destination": self.delimiter + self.container + new_path})
+            for i in swift.copy(
+                self.container,
+                [_obj]):
+              if i["success"]:
+                if i["action"] == "copy_object":
+                    self.log.debug(
+                        "object %s copied from /%s/%s" %
+                        (i["destination"], i["container"], i["object"])
+                    )
+                if i["action"] == "create_container":
+                    self.log.debug(
+                        "container %s created" % i["container"]
+                    )
+              else:
+                if "error" in i and isinstance(i["error"], Exception):
+                    raise i["error"]
+          except SwiftError as e:
+            logger.error(e.value)
 
     def rm(self, path):
         self.log.debug("SwiftFS.rm `%s`", path)
+        path = self.clean_path(path)
 
-        if path in ["", '/']:
+        if path in ["", self.delimiter]:
           self.do_error('Cannot delete root directory') 
 
         with SwiftService() as swift:
@@ -155,8 +183,14 @@ class SwiftFS(HasTraits):
             self.log.error("SwiftFS.rm %s", e.value)
 
 
+    # Directories are just objects that have a trailing '/'
     def mkdir(self, path):
         self.log.debug("SwiftFS.mkdir `%s`", path)
+        path = self.clean_path(path)
+        path = path.rstrip( self.delimiter )
+        path = path + self.delimiter
+        self.write(path, None)
+
 
     ## This works by downloading the file to disk then reading the contents of
     ## that file into memory, before deleting the file
@@ -164,6 +198,7 @@ class SwiftFS(HasTraits):
     ## NOTE this really only works with files in the local direcotry, but given local filestore will disappear when the docker ends, I'm not too bothered.
     def read(self, path):
         self.log.debug("SwiftFS.read `%s`", path)
+        path = self.clean_path(path)
         content = ''
         with SwiftService() as swift:
           try:
@@ -181,6 +216,7 @@ class SwiftFS(HasTraits):
     # We use io.StringIO for this
     def write(self, path, content):
         self.log.debug("SwiftFS.write `%s`", path)
+        path = self.clean_path(path)
         _opts = {'object_uu_threads' : 20}
         with SwiftService( options = _opts ) as swift, OutputManager() as out_manager:
           try:
@@ -219,6 +255,12 @@ class SwiftFS(HasTraits):
             return "directory"
         else:
             return "file"
+
+    def clean_path(self, path):
+        # strip of any leading '/'
+        path = path.lstrip( self.delimiter )
+        #path = self.delimiter + path
+        return path
 
     def do_error(self, msg, code=500):
         raise HTTPError(code, msg)
