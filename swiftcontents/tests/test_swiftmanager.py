@@ -23,14 +23,9 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         files = self.contents_manager.swiftfs.listdir()
         for f in files:
           for g in f:
+            print('Deleting ' + g['name'] )
             self.contents_manager.delete_file( g['name'] )
-    # Overwrites from TestContentsManager
-
-    #def make_dir(self, api_path):
-        #self.contents_manager.new(
-        #    model={"type": "directory"},
-        #    path=api_path,)
-
+        #pass
 
 # This needs to be removed or else we'll run the main IPython tests as well.
 del TestContentsManager
