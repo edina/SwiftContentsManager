@@ -4,7 +4,9 @@ Utilities to make Swift look like a regular file system
 import six
 import os
 import swiftclient
-from swiftclient.service import SwiftService, SwiftError
+import io
+from swiftclient.service import SwiftService, SwiftError, SwiftUploadObject
+from swiftclient.multithreading import OutputManager
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from traitlets import default, HasTraits, Unicode, Any, Instance
@@ -65,7 +67,8 @@ class SwiftFS(HasTraits):
         files = []
         with SwiftService() as swift:
           try:
-            dir_listing = swift.list(container=container, prefix=path)
+            _opts = {'prefix' : path}
+            dir_listing = swift.list(container=self.container, options = _opts )
             for page in dir_listing:  # each page is up to 10,000 items
               if page["success"]:
                 files.append( page["listing"] )
@@ -78,44 +81,54 @@ class SwiftFS(HasTraits):
     # We can 'stat' files, but not directories
     def isfile(self, path):
         self.log.debug("SwiftFS.isfile Checking if `%s` is a file", path)
+        # strip of any leading '/'
+        #path = path.lstrip('/')
+
+        self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
         with SwiftService() as swift:
           try:
             stat_it = swift.stat( container=self.container, objects=[path] )
             for stat_res in stat_it:
               if stat_res['success']:
+                self.log.debug("SwiftFS.isfile returning True")
                 return True
               else:
                 self.log.error(
                   'Failed to retrieve stats for %s' % stat_res['object']
                 )
+                self.log.debug("SwiftFS.isfile returning False")
                 return False
           except SwiftError as e:
             self.log.error("SwiftFS.isfile %s", e.value)
+        self.log.debug("SwiftFS.isfile returning False")
         return False
 
     # We can 'list' direcotries, but not 'stat' them
     def isdir(self, path):
         self.log.debug("SwiftFS.isdir Checking if `%s` is a directory", path)
 
+        # directories mush have a trailing slash on them.
+        # The core code seems to remove any trailing slash, so lets add it back on
+        path = path.rstrip('/')
+        path = path + '/'
+
         # Root directory checks
-        if path == "":  # effectively root directory
+        if path == "/":  # effectively root directory
+          self.log.debug("SwiftFS.isdir returning True")
           return True
-        if not path.endswith(self.delimiter):
-            path = path + self.delimiter
-        if path == "":
-            return True
 
         count = 0
         with SwiftService() as swift:
           try:
             options = { 'prefix' : path }
             response = swift.list( container=self.container, options=options )
-            for page in response:
-              if page['success']:
+            for r in response:
+              if r['success']:
                 count = 1
-                pprint(page['listing'])
+                #pprint(r['listing'])
           except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
+        self.log.debug("SwiftFS.isdir returning the number '%s'", count)
         return count
 
 
@@ -130,19 +143,89 @@ class SwiftFS(HasTraits):
     def rm(self, path):
         self.log.debug("SwiftFS.rm `%s`", path)
 
+        if path in ["", '/']:
+          self.do_error('Cannot delete root directory') 
+
+        with SwiftService() as swift:
+          try:
+            response = swift.delete( container=self.container, objects=[path] )
+            for r in response:
+              self.log.debug("SwiftFS.rm action: `%s` success: `%s`", r['action'], r['success'])
+          except SwiftError as e:
+            self.log.error("SwiftFS.rm %s", e.value)
+
+
     def mkdir(self, path):
         self.log.debug("SwiftFS.mkdir `%s`", path)
 
+    ## This works by downloading the file to disk then reading the contents of
+    ## that file into memory, before deleting the file
+    ## NOTE this is reading text files!
+    ## NOTE this really only works with files in the local direcotry, but given local filestore will disappear when the docker ends, I'm not too bothered.
     def read(self, path):
         self.log.debug("SwiftFS.read `%s`", path)
-        return 'Hello world'
+        content = ''
+        with SwiftService() as swift:
+          try:
+            response = swift.download(container=self.container, objects=[path])
+            for r in response:
+              if r['success']:
+                filename = open( r['path'] )
+                content = filename.read()
+                os.remove( r['path'] )
+          except SwiftError as e:
+            self.log.error("SwiftFS.read %s", e.value)
+        return content 
 
+    # Write is 'upload' and 'upload' needs a "file" it can read from
+    # We use io.StringIO for this
     def write(self, path, content):
         self.log.debug("SwiftFS.write `%s`", path)
-        
+        _opts = {'object_uu_threads' : 20}
+        with SwiftService( options = _opts ) as swift, OutputManager() as out_manager:
+          try:
+            type = self.guess_type(path)
+            things = []
+            if type == "directory":
+              self.log.debug("SwiftFS.write create directory")
+              things.append( SwiftUploadObject(None, object_name=path) )
+            else: 
+              self.log.debug("SwiftFS.write create file/notebook from '%s'", content)
+              output = io.BytesIO( content.encode('utf-8') )
+              things.append( SwiftUploadObject( output, object_name=path) )
 
+            # Now do the upload
+            response = swift.upload(self.container, things)
+            for r in response:
+              self.log.debug("SwiftFS.write action: '%s', response: '%s'", r['action'], r['success'])
+          except SwiftError as e:
+            self.log.error("SwiftFS.write swift-error: %s", e.value)
+          except ClientException as e:
+            self.log.error("SwiftFS.write client-error: %s", e.value)
+
+    def guess_type(self, path, allow_directory=True):
+        """
+        Guess the type of a file.
+        If allow_directory is False, don't consider the possibility that the
+        file is a directory.
+
+        Parameters
+        ----------
+            obj: s3.Object or string
+        """
+        if path.endswith(".ipynb"):
+            return "notebook"
+        elif allow_directory and self.dir_exists(path):
+            return "directory"
+        else:
+            return "file"
+
+    def do_error(self, msg, code=500):
+        raise HTTPError(code, msg)
 
 class SwiftFSError(Exception):
+    def do_error(self, msg, code=500):
+        raise HTTPError(code, msg)
     pass
 
 

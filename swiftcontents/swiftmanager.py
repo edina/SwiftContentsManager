@@ -8,7 +8,7 @@ from traitlets import default, Unicode, List
 
 from swiftcontents.swiftfs import SwiftFS, SwiftFSError, NoSuchFile
 from swiftcontents.ipycompat import ContentsManager
-from swiftcontents.ipycompat import from_dict
+from swiftcontents.ipycompat import reads, from_dict
 
 DUMMY_CREATED_DATE = datetime.now( )
 NBFORMAT_VERSION = 4
@@ -29,7 +29,7 @@ class SwiftContentsManager(ContentsManager):
         self.log.debug("SwiftContents[swiftmanager]: get '%s' %s %s", path, type, format)
 
         if type is None:
-            type = self.guess_type(path)
+            type = self.swiftfs.guess_type(path)
         try:
             func = {
                 "directory": self._get_directory,
@@ -44,7 +44,7 @@ class SwiftContentsManager(ContentsManager):
     def save(self, model, path):
         """Save a file or directory model to path.
         """
-        self.log.debug("SwiftContents[swiftmanager]: save %s: '%s'", model, path)
+        self.log.debug("SwiftContents[swiftmanager]: saving\nModel: %s\npath: '%s'", model, path)
         if "type" not in model:
             self.do_error("No model type provided", 400)
         if "content" not in model and model["type"] != "directory":
@@ -52,6 +52,7 @@ class SwiftContentsManager(ContentsManager):
 
         if model["type"] not in ("file", "directory", "notebook"):
             self.do_error("Unhandled contents type: %s" % model["type"], 400)
+        self.log.debug("SwiftContents[swiftmanager]: type= '%s'", model["type"])
 
         try:
             if model["type"] == "notebook":
@@ -67,6 +68,8 @@ class SwiftContentsManager(ContentsManager):
         model = self.get(path, type=model["type"], content=False)
         if validation_message is not None:
             model["message"] = validation_message
+        #print("SwiftContents[swiftmanager].save returning model")
+        #pprint(model)
         return model
 
     def delete_file(self, path):
@@ -112,22 +115,14 @@ class SwiftContentsManager(ContentsManager):
     # .... and these are all support methods
     ############
 
-    def guess_type(self, path, allow_directory=True):
-        """
-        Guess the type of a file.
-        If allow_directory is False, don't consider the possibility that the
-        file is a directory.
+    def list_checkpoints(self, path):
+        self.log.debug("SwiftContents[list_checkpoints]: not implimented (path was '%s')", path)
 
-        Parameters
-        ----------
-            obj: s3.Object or string
-        """
-        if path.endswith(".ipynb"):
-            return "notebook"
-        elif allow_directory and self.dir_exists(path):
-            return "directory"
-        else:
-            return "file"
+    def delete(self, path):
+        self.log.debug("SwiftContents[delete] called (path was '%s')", path)
+
+    def rename(self, old_path, new_path):
+        self.log.debug("SwiftContents[rename] called (old_path '%s', new_path '%s')", old_path, new_path)
 
     def do_error(self, msg, code=500):
         raise HTTPError(code, msg)
@@ -185,7 +180,7 @@ class SwiftContentsManager(ContentsManager):
         else:
             self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path has **no** content")
 
-        self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path returning %s", pprint(model) )    
+        #self.log.debug("SwiftContents[swiftmanager]: _notebook_model_from_path returning %s", pprint(model) )    
         return model
 
     def _file_model_from_path(self, path, content=False, format=None):
@@ -221,7 +216,7 @@ class SwiftContentsManager(ContentsManager):
             path = self.swiftfs.remove_prefix(path, self.prefix)    # Remove bucket prefix from paths
             if os.path.basename(path) == self.swiftfs.dir_keep_file:
                 continue
-            type_ = self.guess_type(path, allow_directory=True)
+            type_ = self.swiftfs.guess_type(path, allow_directory=True)
             if type_ == "notebook":
                 ret.append(self._notebook_model_from_path(path, False))
             elif type_ == "file":
@@ -236,8 +231,11 @@ class SwiftContentsManager(ContentsManager):
         nb_contents = from_dict(model['content'])
         self.check_and_sign(nb_contents, path)
         file_contents = json.dumps(model["content"])
+        self.log.debug("SwiftContents[swiftmanager]._save_notebook calling swiftfs.write")
         self.swiftfs.write(path, file_contents)
+        self.log.debug("SwiftContents[swiftmanager]._save_notebook calling validate_notebook_model")
         self.validate_notebook_model(model)
+        self.log.debug("SwiftContents[swiftmanager]._save_notebook returning message '%s'", model.get("message") )
         return model.get("message")
 
     def _save_file(self, model, path):
@@ -247,6 +245,10 @@ class SwiftContentsManager(ContentsManager):
     def _save_directory(self, path):
         self.swiftfs.mkdir(path)
 
+    def _get_os_path(self, path):
+        """A non-concept in Swift. Should convert API path to File System Path
+        """
+        return path
 
 def base_model(path):
     return {
