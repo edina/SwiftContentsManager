@@ -153,26 +153,28 @@ class SwiftFS(HasTraits):
         self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
+        self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         with SwiftService() as swift:
           try:
             _obj = SwiftCopyObject(old_path, 
-                                   {"Destination": self.delimiter + self.container + new_path})
-            for i in swift.copy(
-                self.container,
-                [_obj]):
-              if i["success"]:
-                if i["action"] == "copy_object":
+                                   options={"Destination": self.delimiter + self.container + new_path})
+            response = swift.copy( self.container, [_obj],
+                { "Destination": self.delimiter + self.container + new_path })
+            for r in response:
+              self.log.debug( "response is %s ", pprint(r) )
+              if r["success"]:
+                if r["action"] == "copy_object":
                     self.log.debug(
                         "object %s copied from /%s/%s" %
-                        (i["destination"], i["container"], i["object"])
+                        (r["destination"], r["container"], r["object"])
                     )
-                if i["action"] == "create_container":
+                if r["action"] == "create_container":
                     self.log.debug(
-                        "container %s created" % i["container"]
+                        "container %s created" % r["container"]
                     )
               else:
-                if "error" in i and isinstance(i["error"], Exception):
-                    raise i["error"]
+                if "error" in r and isinstance(r["error"], Exception):
+                    raise r["error"]
           except SwiftError as e:
             logger.error(e.value)
 
@@ -267,7 +269,7 @@ class SwiftFS(HasTraits):
 
     def clean_path(self, path):
         # strip of any leading '/'
-        path = path.lstrip( self.delimiter )
+        #path = path.lstrip( self.delimiter )
         #path = self.delimiter + path
         return path
 

@@ -252,7 +252,9 @@ class SwiftContentsManager(ContentsManager):
         self.swiftfs.mkdir(path)
 
     def _get_os_path(self, path):
-        """A non-concept in Swift. Should convert API path to File System Path
+        """A method for converting an object path into File System Path.
+        As we only need local file-system copies for 'get' calls to download into, all files are
+        dumped into /tmp
         """
         return '/tmp/' + path
 
