@@ -125,14 +125,23 @@ class SwiftFS(HasTraits):
             _opts = {}
             if re.search('\w', path):
               _opts = { 'prefix' : path }
+              self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
             response = swift.list( container=self.container, options=_opts )
             for r in response:
+              self.log.debug("SwiftFS.isdir response is '%s'", pprint(r) )
               if r['success']:
+                self.log.debug("SwiftFS.isdir '%s' is a directory", path)
                 count = 1
+              else:
+                self.log.debug("SwiftFS.isdir '%s' is NOT a directory", path)
           except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
-        self.log.debug("SwiftFS.isdir returning the number '%s'", count)
-        return count
+        if count:
+          self.log.debug("SwiftFS.isdir returning True")
+          return True
+        else:
+          self.log.debug("SwiftFS.isdir returning False")
+          return False
 
 
 
