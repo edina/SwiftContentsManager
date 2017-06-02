@@ -119,6 +119,10 @@ class SwiftFS(HasTraits):
         self.log.debug("SwiftFS.isfile Checking if `%s` is a file", path)
         path = self.clean_path(path)
 
+        if path == "":
+          self.log.debug("SwiftFS.isfile path empty, returning False")
+          return False
+
         self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
         with SwiftService() as swift:
           try:
