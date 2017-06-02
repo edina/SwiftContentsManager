@@ -10,6 +10,7 @@ from swiftclient.service import SwiftService, SwiftError, SwiftCopyObject, Swift
 from swiftclient.multithreading import OutputManager
 from keystoneauth1 import session
 from keystoneauth1.identity import v3
+from tornado.web import HTTPError
 from traitlets import default, HasTraits, Unicode, Any, Instance
 from pprint import pprint
 
@@ -62,23 +63,56 @@ class SwiftFS(HasTraits):
         #    self.mkdir("")
 
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
-    # Returns a list of dictionaries
-    def listdir(self, path=""):
+    # Returns a list of all objects that start with the prefix given
+    # Of course, in a proper heirarchical file-system, list-dir only returns the files
+    # in that dir, so we need to filter the list to me ONLY those objects where the
+    # 'heirarchical' bit of the name stops at the path given
+    # The method has 2 modes: 1 when the list of names is returned with the full
+    # path-name, and one where the name is just the "file name"
+    def listdir(self, path="", with_prefix=False):
         self.log.debug("SwiftFS.listdir Listing directory: `%s`", path)
         files = []
         path = self.clean_path(path)
+
+        # Get all objects that match the known path
         with SwiftService() as swift:
           try:
             _opts = {'prefix' : path}
             dir_listing = swift.list(container=self.container, options = _opts )
             for page in dir_listing:  # each page is up to 10,000 items
               if page["success"]:
-                files.append( page["listing"] )
+                files.extend( page["listing"] )
               else:
                 raise page["error"]
           except SwiftError as e:
             self.log.error("SwiftFS.listdir %s", e.value)
-        return files
+
+        # So - finding all the files in the given "directory"
+        # 1) get the count of "levels" in the heirarchy [foo/bar is /foo/bar/, and is 3]
+        # 2) for each file found, remove any trailing slash, and then count the number of levels
+        #    - if they match, it counts.
+
+# idea 2: for every "name", lstrip "path", then split on delimiter.
+# if list[1] is not None, add it to the list of returned files
+
+
+        self.log.debug("SwiftFS.listdir path: `%s`", path)
+        #if path is None or path == '':
+        #  path_count = 1
+        #else:
+        #  path_list = re.split( self.delimiter, path.rstrip( self.delimiter ) + self.delimiter)
+        #  path_count = len( path_list )
+        files_in_dir = []
+        for f in files:
+          if re.match( re.escape(path), f['name'] ):  # path in name
+            local_name = f['name'].rstrip( self.delimiter )
+            short_name = re.sub( re.escape(path), '', local_name, count = 1)
+            short_name = short_name.lstrip( self.delimiter )
+            if len( re.split( self.delimiter, f['name'] ) ):  # 1+ if in subdirectory
+              files_in_dir.append(f)
+        files = files_in_dir
+        self.log.debug("SwiftFS.listdir returning: `%s`" % files)
+        return files    
 
     # We can 'stat' files, but not directories
     def isfile(self, path):
@@ -128,7 +162,6 @@ class SwiftFS(HasTraits):
               self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
             response = swift.list( container=self.container, options=_opts )
             for r in response:
-              self.log.debug("SwiftFS.isdir response is '%s'", pprint(r) )
               if r['success']:
                 self.log.debug("SwiftFS.isdir '%s' is a directory", path)
                 count = 1
@@ -144,24 +177,46 @@ class SwiftFS(HasTraits):
           return False
 
 
-
+    # We need to determine if the old_path is a file or a directory.
+    # If it's a file, we copy it & remove the file
+    # If it's a directory, then we need to do that process for every object that matches that prefix.
     def mv(self, old_path, new_path):
-        self.cp(old_path, new_path)
-        self.rm(old_path)
+        self.log.debug("SwiftFS.mv `%s` to `%s`", old_path, new_path)
+        if self.guess_type( old_path ) == 'directory':
+          self.mv_dir(old_path, new_path)
+        else:
+          self.cp(old_path, new_path)
+          self.rm(old_path)
+
+    
+    # We need to determine if the old_path is a file or a directory.
+    # If it's a file, we copy it & remove the file
+    # If it's a directory, then we need to do that process for every object that matches that prefix.
+    def mv_dir(self, old_path, new_path):
+        self.log.debug("SwiftFS.mv_dir `%s` to `%s`", old_path, new_path)
+        if self.guess_type( old_path ) != 'directory':
+          self.mv(old_path, new_path)
+        else:
+          old_path = old_path.rstrip(self.delimiter) + self.delimiter
+          new_path = new_path.rstrip(self.delimiter) + self.delimiter
+          files = self.listdir(old_path)
+          for f in files:
+            old_file = f['name']
+            # substitution returns the new string, it doesn't modify the given string
+            new_file = re.sub(re.escape(old_path), new_path, old_file, count=1)
+            self.log.debug("SwiftFS.mv_dir `%s' -> `%s` => `%s` -> `%s`", old_path, new_path, old_file, new_file)
+            self.cp( old_file, new_file)
+            self.rm( old_file )
 
     def cp(self, old_path, new_path):
         self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
-        self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         with SwiftService() as swift:
           try:
-            _obj = SwiftCopyObject(old_path, 
-                                   options={"Destination": self.delimiter + self.container + new_path})
-            response = swift.copy( self.container, [_obj],
-                { "Destination": self.delimiter + self.container + new_path })
+            response = swift.copy( self.container, [old_path],
+                { 'destination': self.delimiter + self.container + self.delimiter + new_path })
             for r in response:
-              self.log.debug( "response is %s ", pprint(r) )
               if r["success"]:
                 if r["action"] == "copy_object":
                     self.log.debug(
@@ -176,14 +231,14 @@ class SwiftFS(HasTraits):
                 if "error" in r and isinstance(r["error"], Exception):
                     raise r["error"]
           except SwiftError as e:
-            logger.error(e.value)
+            self.log.error(e.value)
 
     def rm(self, path):
         self.log.debug("SwiftFS.rm `%s`", path)
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
-          self.do_error('Cannot delete root directory') 
+          self.do_error('Cannot delete root directory', code=400) 
 
         with SwiftService() as swift:
           try:
@@ -258,18 +313,22 @@ class SwiftFS(HasTraits):
 
         Parameters
         ----------
-            obj: s3.Object or string
+            path: string
         """
+        self.log.error("Swiftfs.guess_type given path: %s", path)
+        _type = ''
         if path.endswith(".ipynb"):
-            return "notebook"
-        elif allow_directory and self.dir_exists(path):
-            return "directory"
+            _type = "notebook"
+        elif allow_directory and self.isdir(path):
+            _type = "directory"
         else:
-            return "file"
+            _type = "file"
+        self.log.error("Swiftfs.guess_type asserting: %s", _type)
+        return _type
 
     def clean_path(self, path):
         # strip of any leading '/'
-        #path = path.lstrip( self.delimiter )
+        path = path.lstrip( self.delimiter )
         #path = self.delimiter + path
         return path
 

@@ -111,7 +111,27 @@ pip install .
 
 to update the installed code on the Docker & re-run the tests
 
+(or, even better:
+```
+pip uninstall swiftcontentsmanager
+pip install -e .
+```
+... where `-e` means the installation is _editable_ and to re-compile for each run)
+
+### Running just one test
+
+There are times when you want to run just one test, rather than the whole suite:
+
+```
+py.test -v --debug -k test_modified_date swiftcontents/tests/test_swiftmanager.py > debug.out 2>&1
+```
+or
+```
+nosetests --verbose --logging-level=DEBUG swiftcontents/tests/test_swiftmanager.py:SwiftContentsManagerTestCase.test_modified_date > debug.out 2>&1
+```
+
+
 ## See also
 
 1. [PGContents](https://github.com/quantopian/pgcontents) - The reference
-2. [SwiftContents](https://github.com/danielfrg/SwiftContents) (my inspiration for this code), [s3nb](https://github.com/monetate/s3nb) or [s3drive](https://github.com/stitchfix/s3drive)
+2. [S3Contents](https://github.com/danielfrg/S3Contents) (my inspiration for this code), [s3nb](https://github.com/monetate/s3nb) or [s3drive](https://github.com/stitchfix/s3drive)
