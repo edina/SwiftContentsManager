@@ -20,8 +20,15 @@ class SwiftContentsManager(ContentsManager):
         super(SwiftContentsManager, self).__init__(*args, **kwargs)
         self.swiftfs = SwiftFS(log=self.log)
 
-    # These are the methods needed by a 'ContentsManager'
-    ###########
+    def make_dir(self, path):
+        """Create a directory
+        """
+        self.log.debug("swiftmanager.get called: '%s' %s %s", path, type, format)
+        if self.file_exists(path) or self.dir_exists(path):
+            self.already_exists(path)
+        else:
+            self.swiftfs.mkdir(path)
+
 
     def get(self, path, content=True, type=None, format=None):
         """Retrieve an object from the store, named in 'path'
@@ -126,9 +133,6 @@ class SwiftContentsManager(ContentsManager):
         """
         self.log.debug("swiftmanager.is_hidden called '%s'", path)
         return False
-
-    # .... and these are all support methods
-    ############
 
     def list_checkpoints(self, path):
         self.log.debug("swiftmanager.list_checkpoints: not implimented (path was '%s')", path)
