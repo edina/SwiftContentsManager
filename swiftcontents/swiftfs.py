@@ -35,7 +35,7 @@ class SwiftFS(HasTraits):
     def __init__(self, log, **kwargs):
         super(SwiftFS, self).__init__(**kwargs)
         self.log = log
-        self.log.debug("SwiftContents[SwiftFS] container: `%s`", self.container)
+        self.log.info("SwiftContents[SwiftFS] container: `%s`", self.container)
 
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
@@ -45,9 +45,9 @@ class SwiftFS(HasTraits):
             try:
                 stat_it = swift.stat(container=self.container)
                 if stat_it["success"]:
-                    self.log.debug("SwiftContents[SwiftFS] container `%s` exists", self.container)
+                    self.log.info("SwiftContents[SwiftFS] container `%s` exists", self.container)
             except SwiftError as e:
-                self.log.error("SwiftFS.listdir %s", e.value)
+                self.log.info("SwiftFS.listdir %s", e.value)
                 auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
                                    username=os.environ['OS_USERNAME'],
                                    password=os.environ['OS_PASSWORD'],
@@ -56,9 +56,9 @@ class SwiftFS(HasTraits):
                                    project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
                 keystone_session = session.Session(auth=auth)
                 self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                self.log.debug("SwiftContents[SwiftFS] container `%s` does not exist, making it", self.container)
+                self.log.info("SwiftContents[SwiftFS] container `%s` does not exist, making it", self.container)
                 self.swift_connection.put_container(self.container)
-                self.log.debug("SwiftContents[SwiftFS] container `%s` made", self.container)
+                self.log.info("SwiftContents[SwiftFS] container `%s` made", self.container)
 
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
     # Returns a list of all objects that start with the prefix given
@@ -81,7 +81,7 @@ class SwiftFS(HasTraits):
              'last_modified': '2017-06-06T08:55:36.473Z',
              'name': 'foo/bar/thingamy.bob'}
         """
-        self.log.debug("SwiftFS.listdir Listing directory: `%s`", path)
+        self.log.info("SwiftFS.listdir Listing directory: `%s`", path)
         files = []
         path = self.clean_path(path)
 
@@ -102,13 +102,13 @@ class SwiftFS(HasTraits):
         if this_dir_only:
             files = self.restrict_to_this_dir(path, files)
 
-        self.log.debug("SwiftFS.listdir returning: `%s`" % files)
+        self.log.info("SwiftFS.listdir returning: `%s`" % files)
         return files
 
     # Restrict the given list of files to just the ones in the current "dir"
     def restrict_to_this_dir(self, path, files):
-        self.log.debug("SwiftFS.restrict_to_this_dir has path: `%s`", path)
-        self.log.debug("SwiftFS.restrict_to_this_dir has list: `%s`" % files)
+        self.log.info("SwiftFS.restrict_to_this_dir has path: `%s`", path)
+        self.log.info("SwiftFS.restrict_to_this_dir has list: `%s`" % files)
 
         if len(files) == 0:
             return
@@ -119,9 +119,8 @@ class SwiftFS(HasTraits):
         # followed by anything that's NOT a delimiter, possibly followed by the
         # delimiter, and that's the end oof the string!
         pattern = re.escape(path.rstrip(self.delimiter))
-        pattern = pattern + self.delimiter
-        pattern = pattern + '[^' + self.delimiter + ']+'
-        pattern = pattern + self.delimiter + '?'
+        pattern = pattern + '(?:(?:' + self.delimiter + ')?[^' + self.delimiter + ']+'
+        pattern = pattern + self.delimiter + '?)?'
         pattern = pattern + '$'
         self.log.debug("Swiftfs.restrict_to_this_dir pattern is: `%s`", pattern)
         regex = re.compile(pattern, re.UNICODE)
@@ -136,13 +135,13 @@ class SwiftFS(HasTraits):
                 self.log.debug("Swiftfs.restrict_to_this_dir ignoring")
         return files_in_dir
 
-
     # We can 'stat' files, but not directories
     def isfile(self, path):
-        self.log.debug("SwiftFS.isfile Checking if `%s` is a file", path)
+        self.log.info("SwiftFS.isfile Checking if `%s` is a file", path)
         path = self.clean_path(path)
 
         if path is None or path == '':
+            self.log.debug("SwiftFS.isfile has no path, returning False")
             return False
 
         self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
@@ -157,16 +156,16 @@ class SwiftFS(HasTraits):
                         self.log.error(
                           'Failed to retrieve stats for %s' % stat_res['object']
                         )
-                self.log.debug("SwiftFS.isfile returning False")
+                self.log.info("SwiftFS.isfile returning False")
                 return False
             except SwiftError as e:
                 self.log.error("SwiftFS.isfile %s", e.value)
-        self.log.debug("SwiftFS.isfile failed, False")
+        self.log.info("SwiftFS.isfile failed, False")
         return False
 
     # We can 'list' direcotries, but not 'stat' them
     def isdir(self, path):
-        self.log.debug("SwiftFS.isdir Checking if `%s` is a directory", path)
+        self.log.info("SwiftFS.isdir Checking if `%s` is a directory", path)
         path = self.clean_path(path)
 
         # directories mush have a trailing slash on them.
@@ -177,7 +176,7 @@ class SwiftFS(HasTraits):
 
         # Root directory checks
         if path == self.delimiter:  # effectively root directory
-            self.log.debug("SwiftFS.isdir found root dir - returning True")
+            self.log.info("SwiftFS.isdir found root dir - returning True")
             return True
 
         count = 0
@@ -199,17 +198,17 @@ class SwiftFS(HasTraits):
             except SwiftError as e:
                 self.log.error("SwiftFS.isdir %s", e.value)
         if count:
-            self.log.debug("SwiftFS.isdir returning True")
+            self.log.info("SwiftFS.isdir returning True")
             return True
         else:
-            self.log.debug("SwiftFS.isdir returning False")
+            self.log.info("SwiftFS.isdir returning False")
             return False
 
     # We need to determine if the old_path is a file or a directory.
     # If it's a file, we copy it & remove the file
     # If it's a directory, handle it differently.
     def mv(self, old_path, new_path):
-        self.log.debug("SwiftFS.mv `%s` to `%s`", old_path, new_path)
+        self.log.info("SwiftFS.mv `%s` to `%s`", old_path, new_path)
         if self.guess_type(old_path) == 'directory':
             self.mv_dir(old_path, new_path)
         else:
@@ -220,13 +219,13 @@ class SwiftFS(HasTraits):
     # If it's a directory, then we need to do that process for every object that
     # matches that prefix.
     def mv_dir(self, old_path, new_path):
-        self.log.debug("SwiftFS.mv_dir `%s` to `%s`", old_path, new_path)
+        self.log.info("SwiftFS.mv_dir `%s` to `%s`", old_path, new_path)
         if self.guess_type(old_path) != 'directory':
             self.mv(old_path, new_path)
         else:
             old_path = old_path.rstrip(self.delimiter) + self.delimiter
             new_path = new_path.rstrip(self.delimiter) + self.delimiter
-            files = self.listdir(old_path)
+            files = self.listdir(old_path, this_dir_only=False)
             for f in files:
                 old_file = f['name']
                 # substitution returns the new string, it doesn't modify the
@@ -235,11 +234,11 @@ class SwiftFS(HasTraits):
                                   old_file, count=1)
                 self.log.debug("SwiftFS.mv_dir `%s' -> `%s` => `%s` -> `%s`",
                                old_path, new_path, old_file, new_file)
-                self.cp( old_file, new_file)
-                self.rm( old_file )
+                self.cp(old_file, new_file)
+                self.rm(old_file)
 
     def cp(self, old_path, new_path):
-        self.log.debug("SwiftFS.copy `%s` to `%s`", old_path, new_path)
+        self.log.info("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
         with SwiftService() as swift:
@@ -267,11 +266,15 @@ class SwiftFS(HasTraits):
                 self.log.error(e.value)
 
     def rm(self, path):
-        self.log.debug("SwiftFS.rm `%s`", path)
+        self.log.info("SwiftFS.rm `%s`", path)
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
             self.do_error('Cannot delete root directory', code=400)
+            return False
+        #  ####### Need to add code to not delete a "dir" object that has
+        #  sub-dirs or files "under" it.
+        files = self.listdir(path, this_dir_only=False)
 
         with SwiftService() as swift:
             try:
@@ -285,7 +288,7 @@ class SwiftFS(HasTraits):
 
     # Directories are just objects that have a trailing '/'
     def mkdir(self, path):
-        self.log.debug("SwiftFS.mkdir `%s`", path)
+        self.log.info("SwiftFS.mkdir `%s`", path)
         path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
@@ -297,25 +300,26 @@ class SwiftFS(HasTraits):
     # NOTE this really only works with files in the local direcotry, but given
     # local filestore will disappear when the docker ends, I'm not too bothered.
     def read(self, path):
-        self.log.debug("SwiftFS.read `%s`", path)
+        self.log.info("SwiftFS.read `%s`", path)
         path = self.clean_path(path)
         content = ''
         with SwiftService() as swift:
-          try:
-            response = swift.download(container=self.container, objects=[path])
-            for r in response:
-              if r['success']:
-                filename = open( r['path'] )
-                content = filename.read()
-                os.remove( r['path'] )
-          except SwiftError as e:
-            self.log.error("SwiftFS.read %s", e.value)
+            try:
+                response = swift.download(container=self.container,
+                                          objects=[path])
+                for r in response:
+                    if r['success']:
+                        filename = open(r['path'])
+                        content = filename.read()
+                        os.remove(r['path'])
+            except SwiftError as e:
+                self.log.error("SwiftFS.read %s", e.value)
         return content
 
     # Write is 'upload' and 'upload' needs a "file" it can read from
     # We use io.StringIO for this
     def write(self, path, content):
-        self.log.debug("SwiftFS.write `%s`", path)
+        self.log.info("SwiftFS.write `%s`", path)
         path = self.clean_path(path)
         # If we can't make the directory path, then we can't make the file!
         success = self._make_intermedate_dirs(path)
@@ -323,17 +327,14 @@ class SwiftFS(HasTraits):
             self._do_write(path, content)
 
     def _make_intermedate_dirs(self, path):
-        self.log.debug("SwiftFS._make_intermedate_dirs `%s`", path)
+        self.log.info("SwiftFS._make_intermedate_dirs `%s`", path)
         # we loop over the path, checking for an object at every level
         # of the hierachy, except the last item (which may be a file,
         # or a directory itself
         path_parts = re.split(self.delimiter, path)
         current_path = ''
         for p in path_parts[:-1]:
-            print("current path: `%s`" % current_path)
-            print("path: `%s`" % p)
             this_path = current_path + p + self.delimiter
-            print("this path: `%s`" % this_path)
             if self.isfile(this_path):
                 self.log.debug(
                     "SwiftFS._make_intermedate_dirs failure: dir exists at path `%s`"
@@ -343,11 +344,11 @@ class SwiftFS(HasTraits):
                 self.log.debug("SwiftFS._make_intermedate_dirs making directory")
                 self._do_write(this_path, None)
             current_path = this_path
-        self.log.debug("SwiftFS._make_intermedate_dirs finished")
+        self.log.info("SwiftFS._make_intermedate_dirs finished")
         return True
 
     def _do_write(self, path, content):
-        self.log.debug("SwiftFS._do_write `%s`", path)
+        self.log.info("SwiftFS._do_write `%s`", path)
         path = self.clean_path(path)
         _opts = {'object_uu_threads': 20}
         with SwiftService(options=_opts) as swift, OutputManager() as out_manager:
@@ -382,7 +383,7 @@ class SwiftFS(HasTraits):
         ----------
             path: string
         """
-        self.log.error("Swiftfs.guess_type given path: %s", path)
+        self.log.info("Swiftfs.guess_type given path: %s", path)
         _type = ''
         if path.endswith(".ipynb"):
             _type = "notebook"
@@ -390,7 +391,7 @@ class SwiftFS(HasTraits):
             _type = "directory"
         else:
             _type = "file"
-        self.log.debug("Swiftfs.guess_type asserting: %s", _type)
+        self.log.info("Swiftfs.guess_type asserting: %s", _type)
         return _type
 
     def clean_path(self, path):
