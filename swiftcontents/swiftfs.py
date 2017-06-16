@@ -24,10 +24,6 @@ class SwiftFS(HasTraits):
         config=True
         )
 
-    swift_connection = Instance(
-        klass='swiftclient.client.Connection'
-        )
-
     delimiter = Unicode("/", help="Path delimiter", config=True)
 
     root_dir = Unicode("/", config=True)
@@ -40,25 +36,23 @@ class SwiftFS(HasTraits):
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
 
-        # Ensure there's a container for this user
-        with SwiftService() as swift:
-            try:
-                stat_it = swift.stat(container=self.container)
-                if stat_it["success"]:
-                    self.log.info("SwiftContents[SwiftFS] container `%s` exists", self.container)
-            except SwiftError as e:
-                self.log.info("SwiftFS.listdir %s", e.value)
-                auth = v3.Password(auth_url=os.environ['OS_AUTH_URL'],
-                                   username=os.environ['OS_USERNAME'],
-                                   password=os.environ['OS_PASSWORD'],
-                                   user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
-                                   project_name=os.environ['OS_PROJECT_NAME'],
-                                   project_domain_name=os.environ['OS_USER_DOMAIN_NAME'])
-                keystone_session = session.Session(auth=auth)
-                self.swift_connection = swiftclient.client.Connection(session=keystone_session)
-                self.log.info("SwiftContents[SwiftFS] container `%s` does not exist, making it", self.container)
-                self.swift_connection.put_container(self.container)
-                self.log.info("SwiftContents[SwiftFS] container `%s` made", self.container)
+        # open connection to swift container
+        self.swift = SwiftService()
+
+        # make sure container exists
+        try:
+            result = self.swift.post(container=self.container)
+        except SwiftError as e:
+            self.log.error("creating container %s", e.value)
+            raise HTTPError(404,e.value)
+            
+        if not result["success"]:
+            msg = "could not create container %s"%self.container
+            self.log.error(msg)
+            raise HTTPError(404,msg)
+            
+            
+        self.log.info("using container `%s`", self.container)
 
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
     # Returns a list of all objects that start with the prefix given
@@ -86,18 +80,17 @@ class SwiftFS(HasTraits):
         path = self.clean_path(path)
 
         # Get all objects that match the known path
-        with SwiftService() as swift:
-            try:
-                _opts = {'prefix': path}
-                dir_listing = swift.list(container=self.container,
-                                         options=_opts)
-                for page in dir_listing:  # each page is up to 10,000 items
-                    if page["success"]:
-                        files.extend(page["listing"])
-                    else:
-                        raise page["error"]
-            except SwiftError as e:
-                self.log.error("SwiftFS.listdir %s", e.value)
+        try:
+            _opts = {'prefix': path}
+            dir_listing = self.swift.list(container=self.container,
+                                     options=_opts)
+            for page in dir_listing:  # each page is up to 10,000 items
+                if page["success"]:
+                    files.extend(page["listing"])
+                else:
+                    raise page["error"]
+        except SwiftError as e:
+            self.log.error("SwiftFS.listdir %s", e.value)
 
         if this_dir_only:
             files = self.restrict_to_this_dir(path, files)
@@ -145,21 +138,20 @@ class SwiftFS(HasTraits):
             return False
 
         self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
-        with SwiftService() as swift:
-            try:
-                stat_it = swift.stat(container=self.container, objects=[path])
-                for stat_res in stat_it:
-                    if stat_res['success']:
-                        self.log.debug("SwiftFS.isfile returning True")
-                        return True
-                    else:
-                        self.log.error(
-                          'Failed to retrieve stats for %s' % stat_res['object']
-                        )
-                self.log.info("SwiftFS.isfile returning False")
-                return False
-            except SwiftError as e:
-                self.log.error("SwiftFS.isfile %s", e.value)
+        try:
+            stat_it = self.swift.stat(container=self.container, objects=[path])
+            for stat_res in stat_it:
+                if stat_res['success']:
+                    self.log.debug("SwiftFS.isfile returning True")
+                    return True
+                else:
+                    self.log.error(
+                      'Failed to retrieve stats for %s' % stat_res['object']
+                    )
+            self.log.info("SwiftFS.isfile returning False")
+            return False
+        except SwiftError as e:
+            self.log.error("SwiftFS.isfile %s", e.value)
         self.log.info("SwiftFS.isfile failed, False")
         return False
 
@@ -180,23 +172,22 @@ class SwiftFS(HasTraits):
             return True
 
         count = 0
-        with SwiftService() as swift:
-            try:
-                _opts = {}
-                if re.search('\w', path):
-                    _opts = {'prefix': path}
-                    self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
-                response = swift.list(container=self.container, options=_opts)
-                for r in response:
-                    if r['success']:
-                        self.log.debug("SwiftFS.isdir '%s' is a directory",
-                                       path)
-                        count = 1
-                    else:
-                        self.log.debug("SwiftFS.isdir '%s' is NOT a directory",
-                                       path)
-            except SwiftError as e:
-                self.log.error("SwiftFS.isdir %s", e.value)
+        try:
+            _opts = {}
+            if re.search('\w', path):
+                _opts = {'prefix': path}
+                self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
+            response = self.swift.list(container=self.container, options=_opts)
+            for r in response:
+                if r['success']:
+                    self.log.debug("SwiftFS.isdir '%s' is a directory",
+                                   path)
+                    count = 1
+                else:
+                    self.log.debug("SwiftFS.isdir '%s' is NOT a directory",
+                                   path)
+        except SwiftError as e:
+            self.log.error("SwiftFS.isdir %s", e.value)
         if count:
             self.log.info("SwiftFS.isdir returning True")
             return True
@@ -241,29 +232,28 @@ class SwiftFS(HasTraits):
         self.log.info("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
-        with SwiftService() as swift:
-            try:
-                response = swift.copy(self.container, [old_path],
-                                      {'destination': self.delimiter +
-                                       self.container +
-                                       self.delimiter +
-                                       new_path})
-                for r in response:
-                    if r["success"]:
-                        if r["action"] == "copy_object":
-                            self.log.debug(
-                                "object %s copied from /%s/%s" %
-                                (r["destination"], r["container"], r["object"])
-                            )
-                        if r["action"] == "create_container":
-                            self.log.debug(
-                                "container %s created" % r["container"]
-                            )
-                    else:
-                        if "error" in r and isinstance(r["error"], Exception):
-                            raise r["error"]
-            except SwiftError as e:
-                self.log.error(e.value)
+        try:
+            response = self.swift.copy(self.container, [old_path],
+                                  {'destination': self.delimiter +
+                                   self.container +
+                                   self.delimiter +
+                                   new_path})
+            for r in response:
+                if r["success"]:
+                    if r["action"] == "copy_object":
+                        self.log.debug(
+                            "object %s copied from /%s/%s" %
+                            (r["destination"], r["container"], r["object"])
+                        )
+                    if r["action"] == "create_container":
+                        self.log.debug(
+                            "container %s created" % r["container"]
+                        )
+                else:
+                    if "error" in r and isinstance(r["error"], Exception):
+                        raise r["error"]
+        except SwiftError as e:
+            self.log.error(e.value)
 
     def rm(self, path):
         self.log.info("SwiftFS.rm `%s`", path)
@@ -276,15 +266,14 @@ class SwiftFS(HasTraits):
         #  sub-dirs or files "under" it.
         files = self.listdir(path, this_dir_only=False)
 
-        with SwiftService() as swift:
-            try:
-                response = swift.delete(container=self.container,
-                                        objects=[path])
-                for r in response:
-                    self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
-                                   r['action'], r['success'])
-            except SwiftError as e:
-                self.log.error("SwiftFS.rm %s", e.value)
+        try:
+            response = self.swift.delete(container=self.container,
+                                    objects=[path])
+            for r in response:
+                self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
+                               r['action'], r['success'])
+        except SwiftError as e:
+            self.log.error("SwiftFS.rm %s", e.value)
 
     # Directories are just objects that have a trailing '/'
     def mkdir(self, path):
@@ -303,17 +292,16 @@ class SwiftFS(HasTraits):
         self.log.info("SwiftFS.read `%s`", path)
         path = self.clean_path(path)
         content = ''
-        with SwiftService() as swift:
-            try:
-                response = swift.download(container=self.container,
-                                          objects=[path])
-                for r in response:
-                    if r['success']:
-                        filename = open(r['path'])
-                        content = filename.read()
-                        os.remove(r['path'])
-            except SwiftError as e:
-                self.log.error("SwiftFS.read %s", e.value)
+        try:
+            response = self.swift.download(container=self.container,
+                                      objects=[path])
+            for r in response:
+                if r['success']:
+                    filename = open(r['path'])
+                    content = filename.read()
+                    os.remove(r['path'])
+        except SwiftError as e:
+            self.log.error("SwiftFS.read %s", e.value)
         return content
 
     # Write is 'upload' and 'upload' needs a "file" it can read from
