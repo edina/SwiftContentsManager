@@ -138,22 +138,19 @@ class SwiftFS(HasTraits):
             return False
 
         self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
-        try:
-            stat_it = self.swift.stat(container=self.container, objects=[path])
-            for stat_res in stat_it:
-                if stat_res['success']:
-                    self.log.debug("SwiftFS.isfile returning True")
-                    return True
+
+        _isfile = False
+        if not path.endswith(self.delimiter):
+            try:
+                stat_it = self.swift.stat(container=self.container, objects=[path])
+                if stat_it[0]['success']:
+                    _isfile =  True
                 else:
-                    self.log.error(
-                      'Failed to retrieve stats for %s' % stat_res['object']
-                    )
-            self.log.info("SwiftFS.isfile returning False")
-            return False
-        except SwiftError as e:
-            self.log.error("SwiftFS.isfile %s", e.value)
-        self.log.info("SwiftFS.isfile failed, False")
-        return False
+                    self.log.error('Failed to retrieve stats for %s' % stat_res['object'])
+             except SwiftError as e:
+                self.log.error("SwiftFS.isfile %s", e.value)
+        self.log.debug("isfile returning %s",_isfile)
+        return _isfile
 
     # We can 'list' direcotries, but not 'stat' them
     def isdir(self, path):
@@ -163,37 +160,32 @@ class SwiftFS(HasTraits):
         # directories mush have a trailing slash on them.
         # The core code seems to remove any trailing slash, so lets add it back
         # on
-        path = path.rstrip(self.delimiter)
-        path = path + self.delimiter
+        if not path.endswith(self.delimiter):
+            path = path + self.delimiter
 
         # Root directory checks
         if path == self.delimiter:  # effectively root directory
             self.log.info("SwiftFS.isdir found root dir - returning True")
             return True
 
-        count = 0
+        _isdir = False
         try:
             _opts = {}
             if re.search('\w', path):
                 _opts = {'prefix': path}
                 self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
             response = self.swift.list(container=self.container, options=_opts)
-            for r in response:
-                if r['success']:
-                    self.log.debug("SwiftFS.isdir '%s' is a directory",
-                                   path)
-                    count = 1
-                else:
-                    self.log.debug("SwiftFS.isdir '%s' is NOT a directory",
-                                   path)
+            if response[0]['success']:
+                self.log.debug("SwiftFS.isdir '%s' is a directory",
+                               path)
+                _isdir = True
+            else:
+                self.log.debug("SwiftFS.isdir '%s' is NOT a directory",
+                               path)
         except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
-        if count:
-            self.log.info("SwiftFS.isdir returning True")
-            return True
-        else:
-            self.log.info("SwiftFS.isdir returning False")
-            return False
+        self.log.debug("isdir returning %s",_isdir)
+        return _isdir
 
     # We need to determine if the old_path is a file or a directory.
     # If it's a file, we copy it & remove the file
