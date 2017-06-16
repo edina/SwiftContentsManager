@@ -45,13 +45,13 @@ class SwiftFS(HasTraits):
         except SwiftError as e:
             self.log.error("creating container %s", e.value)
             raise HTTPError(404,e.value)
-            
+
         if not result["success"]:
             msg = "could not create container %s"%self.container
             self.log.error(msg)
             raise HTTPError(404,msg)
-            
-            
+
+
         self.log.info("using container `%s`", self.container)
 
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
@@ -142,12 +142,14 @@ class SwiftFS(HasTraits):
         _isfile = False
         if not path.endswith(self.delimiter):
             try:
-                stat_it = self.swift.stat(container=self.container, objects=[path])
-                if stat_it[0]['success']:
-                    _isfile =  True
-                else:
-                    self.log.error('Failed to retrieve stats for %s' % stat_res['object'])
-             except SwiftError as e:
+                response = self.swift.stat(container=self.container, objects=[path])
+                for r in response:
+                    if r['success']:
+                        _isfile =  True
+                    else:
+                        self.log.error('Failed to retrieve stats for %s' % r['object'])
+                    break
+            except Exception as e:
                 self.log.error("SwiftFS.isfile %s", e.value)
         self.log.debug("isfile returning %s",_isfile)
         return _isfile
@@ -175,13 +177,12 @@ class SwiftFS(HasTraits):
                 _opts = {'prefix': path}
                 self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
             response = self.swift.list(container=self.container, options=_opts)
-            if response[0]['success']:
-                self.log.debug("SwiftFS.isdir '%s' is a directory",
-                               path)
-                _isdir = True
-            else:
-                self.log.debug("SwiftFS.isdir '%s' is NOT a directory",
-                               path)
+            for r in response:
+                if r['success']:
+                    _isdir = True
+                else:
+                    self.log.error('Failed to retrieve stats for %s' % r['object'])
+                break
         except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
         self.log.debug("isdir returning %s",_isdir)
