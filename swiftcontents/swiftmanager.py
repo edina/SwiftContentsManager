@@ -43,18 +43,15 @@ class SwiftContentsManager(ContentsManager):
 
         if type is None:
             type = self.swiftfs.guess_type(path)
+        if type not in ["directory","notebook","file"]:
+            msg = "Unknown type passed: '{}'".format(type)
+            self.log.debug(msg )
+            raise ValueError(msg)
 
-        # func becomes a function call, depending on type    
-        try:
-            func = {
-                "directory": self._get_directory,
-                "notebook": self._get_notebook,
-                "file": self._get_file,
-            }[type]
-        except KeyError:
-            self.log.debug("swiftmanager.get error: unknown type `%s`", type )
-            raise ValueError("Unknown type passed: '{}'".format(type))
-
+        # construct accessor name from type
+        # eg file => _get_file
+        func = getattr(self,'_get_'+type)
+            
         # now call the appropriate function, with the parameters given    
         response = func(path=path, content=content, format=format)
         self.log.debug("swiftmanager.get returning")
@@ -293,8 +290,12 @@ class SwiftContentsManager(ContentsManager):
         return '/tmp/' + path
 
 def base_model(path):
+    p = path.split('/')
+    name = p.pop()
+    if len(name)==0 and len(p)>0:
+        name = p.pop()+'/'
     return {
-        "name": path.rsplit('/', 1)[-1],
+        "name": name,
         "path": path.lstrip( '/' ),
         "writable": True,
         "last_modified": None,
