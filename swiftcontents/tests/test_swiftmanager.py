@@ -12,13 +12,22 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
     _temp_dir = TemporaryDirectory()
 
+    # Some reference data:
+    # list of dirs to make
+    all_dirs = ['temp', 'temp/bar', 'temp/bar/foo', 'temp/bar/foo/bar']
+    # subdirectory for each dir above
+    all_dirs_sub = {'temp': 'bar', 'temp/bar': 'foo', 'temp/bar/foo': 'bar', 'temp/bar/foo/bar': ''}
+    # name of text file
+    test_filename = 'hello.txt'
+    # content of text file
+    content = 'Hello world'
+
     def setUp(self):
         """
         Note: this test requires a bunch of environment variables set, and
         is written to work in a Docker image, against the UofE 'Horizon' server
         """
         self.contents_manager = SwiftContentsManager()
-
 
     def tearDown(self):
         # Delete objects from the store
@@ -27,7 +36,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
           for g in f:
             pass #self.contents_manager.delete_file( g['name'] )
 
-        # Delete files from the local file-store    
+        # Delete files from the local file-store
         files = os.listdir('/tmp')
         for f in files:
           if f != self._temp_dir:
@@ -35,21 +44,11 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         self.contents_manager.log.info("--------------------------------------")
 
-    def test_swiftfs_ian(self):
+    # simple stuff that doesn't touch the filestore
+    def test_swiftfs_ian_nonfs(self):
         cm = self.contents_manager
         cm.log.info("test_swiftfs_ian starting")
 
-        # Some reference data:
-        # list of dirs to make
-        all_dirs = ['temp', 'temp/bar', 'temp/bar/foo', 'temp/bar/foo/bar']
-        # subdirectory for each dir above
-        all_dirs_sub = {'temp': 'bar', 'temp/bar': 'foo', 'temp/bar/foo': 'bar', 'temp/bar/foo/bar': ''}
-        # name of text file
-        filename = 'hello.txt'
-        # content of text file
-        content = 'Hello world'
-
-        # simple stuff that doesn't touch the filestore
         cm.log.info("test_swiftfs_ian test guess_type")
         self.assertIs(cm.swiftfs.guess_type('foo.ipynb'), 'notebook')
         self.assertIs(cm.swiftfs.guess_type('foo/'), 'directory')
@@ -65,107 +64,163 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         self.assertRaises(HTTPError, lambda: cm.swiftfs.do_error("Lorem ipsum dolor sit amet, consectetur adipiscing elit"))
 
 
-
-        cm.log.info("test_swiftfs_ian create clean working space")
-        files = cm.swiftfs.listdir('temp/', this_dir_only=False)
+    def clear_store(self, path):
+        cm = self.contents_manager
+        cm.log.info("test suite create clean working space")
+        files = cm.swiftfs.listdir(path, this_dir_only=False)
         for f in files:
             cm.swiftfs.rm( f['name'] )
 
+    def make_data(self):
+        cm = self.contents_manager
+        cm.log.info("test suite make_data")
+
         # test mkdir
-        for _dir in all_dirs:
+        for _dir in self.all_dirs:
             cm.log.info("test_swiftfs_ian test mkdir for '%s'", _dir)
             cm.swiftfs.mkdir(_dir)
+
+        # put a file in each directory
+        for _dir in self.all_dirs:
+            path = _dir + '/' + self.test_filename
+            cm.log.info("test_swiftfs_ian create file '%s'", path)
+            cm.swiftfs._do_write(path, self.content)
+
+    def get_list_of_files(self):
+        files = set()
+        for _dir in self.all_dirs:
+            directory = _dir+ '/'
+            #if self.all_dirs_sub[_dir]:
+            #    files.add(directory + self.all_dirs_sub[_dir] + '/')
+            files.add(directory + self.test_filename)
+        return files
+
+    def test_swiftfs_ian_istests(self):
+        cm = self.contents_manager
+        self.clear_store(self.all_dirs[0])
+        self.make_data()
+
         # test isdir & is_file on dirs
-        for _dir in all_dirs:
+        for _dir in self.all_dirs:
             cm.log.info("test_swiftfs_ian test isdir & isfile for '%s'", _dir)
             self.assertIs(cm.swiftfs.isdir(_dir), True)
             self.assertIs(cm.swiftfs.isfile(_dir), False)
 
-        # put a file in each directory
-        for _dir in all_dirs:
-            path = _dir + '/' + filename
-            cm.log.info("test_swiftfs_ian create file '%s'", path)
-            cm.swiftfs._do_write(path, content)
-
         # test isdir & is_file on files
-        for _dir in all_dirs:
-            path = _dir + '/' + filename
+        for _dir in self.all_dirs:
+            path = _dir + '/' + self.test_filename
             cm.log.info("test_swiftfs_ian test isdir & isfile for '%s'", path)
             self.assertIs(cm.swiftfs.isdir(path), False)
             self.assertIs(cm.swiftfs.isfile(path), True)
 
         # test listdir (normal mode)
-        for _dir in all_dirs:
+        files = self.get_list_of_files()
+        for _dir in self.all_dirs:
             directory = _dir+ '/'
-            files = []
-            if all_dirs_sub[_dir]:
-                files.append(directory + all_dirs_sub[_dir] + '/')
-            files.append(directory + filename)
-            files = set(files)
-            returns = set(map(lambda x: x['name'], cm.swiftfs.listdir(_dir)))
             cm.log.info("test_swiftfs_ian test listdir (normal-mode for '%s': should return %s", _dir, files)
+            returns = set(map(lambda x: x['name'], cm.swiftfs.listdir(_dir)))
             self.assertFalse(files ^ returns) # there should be no difference
 
         # test listdir in all files mode
-        reference = list(map( lambda x: x + '/', all_dirs))
-        reference.extend(list(map( lambda x: x + '/' + filename, all_dirs)))
+        path = self.all_dirs[0]
+        reference = list(map( lambda x: x + '/', self.all_dirs))
+        reference.extend(list(map( lambda x: x + '/' + self.test_filename, self.all_dirs)))
         reference = set(reference)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp/', this_dir_only=False) ) )
         cm.log.info("test_swiftfs_ian test listdir (full-mode) for '%s': should return %s", path, reference)
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(path, this_dir_only=False) ) )
         self.assertFalse(reference ^ returns) # there should be no difference
 
         # test listdir can cope with a path without the '/' on it
         returns2 = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp', this_dir_only=False) ) )
         self.assertFalse(returns2 ^ returns) # there should be no difference
 
+        self.clear_store(self.all_dirs[0])
+
+
+    def test_swiftfs_ian_manipulate_files(self):
+        cm = self.contents_manager
+        self.clear_store(self.all_dirs[0])
+        self.make_data()
+
         # copying a file
-        from_path = all_dirs[-1] + '/' + filename
-        to_path = all_dirs[-1] + '/' + filename + '_b'
+        from_path = self.all_dirs[-1] + '/' + self.test_filename
+        to_path = self.all_dirs[-1] + '/' + self.test_filename + '_b'
         cm.log.info("test_swiftfs_ian test copying '%s' to '%s'", from_path, to_path)
         cm.swiftfs.cp(from_path, to_path)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(all_dirs[-1]) ) )
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1]) ) )
         self.assertTrue(from_path in returns)
         self.assertTrue(to_path in returns)
 
         # and removing a file
         cm.log.info("test_swiftfs_ian test deleting '%s'", to_path)
         cm.swiftfs.rm(to_path)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(all_dirs[-1]) ) )
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1]) ) )
         self.assertTrue(from_path in returns)
         self.assertFalse(to_path in returns)
 
         # now lets try moving a file
         cm.log.info("test_swiftfs_ian test move '%s' to '%s'", from_path, to_path)
         cm.swiftfs.mv(from_path, to_path)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(all_dirs[-1]) ) )
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1]) ) )
         self.assertFalse(from_path in returns)
         self.assertTrue(to_path in returns)
 
         # .... and back again
         cm.log.info("test_swiftfs_ian test move '%s' to '%s'", to_path, from_path)
         cm.swiftfs.mv(to_path, from_path)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(all_dirs[-1]) ) )
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1]) ) )
         self.assertFalse(to_path in returns)
         self.assertTrue(from_path in returns)
 
         # Now if we delete the single file, the dir should be empty
         cm.swiftfs.rm(from_path)
-        print("listdir looking no files in " + all_dirs[-1])
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(all_dirs[-1])))
+        cm.log.info("listdir looking no files in " + self.all_dirs[-1])
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1])))
         self.assertFalse(len(returns))
 
-        # Does making a file some way down a tree make all the intermediate "directories"?
-        # (first we need to get rid of the existing temp tree)
-        cm.log.info("test_swiftfs_ian clear the working space again")
-        files = cm.swiftfs.listdir('temp/', this_dir_only=False)
-        for f in files:
-            cm.swiftfs.rm( f['name'] )
+        self.clear_store(self.all_dirs[0])
+
+    def test_swiftfs_ian_manipulate_dirs(self):
+        cm = self.contents_manager
+        self.clear_store(self.all_dirs[0])
+        self.make_data()
+        from_path = self.all_dirs[1] + '/'
+        to_path = self.all_dirs[1] + 'l/'
+
+        # test mv_dir renames a directory, and all sub-objects
+        cm.log.info("test_swiftfs_ian move " + from_path  + " to " + to_path + ": should modify all 'sub-directory' objects")
+        expected = set()
+        got_back = cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False)
+        for f in self.get_list_of_files():
+            if f.startswith(from_path):
+                expected.add(f.replace(from_path, to_path, 1))
+        cm.swiftfs.mv_dir(from_path, to_path)
+        got_back = cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False)
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False) ) )
+        print("mv_dir")
+        print("expected")
+        pprint(expected)
+        print("got_back")
+        pprint(got_back)
+        print("returns")
+        pprint(returns)
+        self.assertFalse(expected ^ returns) # there should be no difference
+
+        self.clear_store(self.all_dirs[0])
+
+    # Does making a file some way down a tree make all the intermediate "directories"?
+    # (first we need to get rid of the existing temp tree)
+    def test_swiftfs_ian_tree_test(self):
+        cm = self.contents_manager
+        self.clear_store(self.all_dirs[0])
+        self.make_data()
+        from_path = 'ian/magi/kiz/custard/cat.dog'
 
         cm.log.info("test_swiftfs_ian create '%s' (and all intermediate sub_dirs)", from_path)
         cm.swiftfs.write(from_path, content)
         returns = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp', this_dir_only=False) ) )
-        expected = list(map( lambda x: x + '/', all_dirs))
-        expected.append(all_dirs[-1] + '/' + filename)
+        expected = list(map( lambda x: x + '/', self.all_dirs))
+        expected.append(self.all_dirs[-1] + '/' + self.test_filename)
         expected = set(expected)
         self.assertFalse(expected ^ returns) # there should be no difference
 
@@ -174,24 +229,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         data = cm.swiftfs.read(from_path)
         self.assertEquals(data, content)
 
-        # test mv_dir renames a directory, and all sub-objects
-        cm.log.info("test_swiftfs_ian move temp/foo to temp/fool: should modify all 'sub-directory' objects")
-        from_path = all_dirs[1] + '/'
-        to_path = all_dirs[1] + 'l'
-        expected = set(map( lambda x: x.replace(from_path, to_path, 1) + '/', all_dirs))
-        cm.swiftfs.mv_dir(from_path, to_path)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp', this_dir_only=False) ) )
-        #print("mv_dir")
-        #print("expected")
-        #pprint(expected)
-        #print("returns")
-        #pprint(returns)
-        self.assertFalse(expected ^ returns) # there should be no difference
-
-
-        # bodge to force an error
-        self.assertIs('True', False)
-        cm.log.info("test_swiftfs_ian ending")
+        self.clear_store(self.all_dirs[0])
 
     def test_rename_ian(self):
         cm = self.contents_manager
@@ -253,7 +291,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         # Created a notebook in the renamed directory should work
         cm.log.info("test_rename_ian create notebook in foo/bar_diff should work")
-        cm.new_untitled("foo/bar_diff", ext=".ipynb")    
+        cm.new_untitled("foo/bar_diff", ext=".ipynb")
         cm.log.info("test_rename_ian test_ends")
 
 
