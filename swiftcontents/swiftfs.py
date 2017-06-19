@@ -86,47 +86,31 @@ class SwiftFS(HasTraits):
                                      options=_opts)
             for page in dir_listing:  # each page is up to 10,000 items
                 if page["success"]:
-                    files.extend(page["listing"])
+                    files.extend(page["listing"])   # page is returning a list
                 else:
                     raise page["error"]
         except SwiftError as e:
             self.log.error("SwiftFS.listdir %s", e.value)
 
         if this_dir_only:
-            files = self.restrict_to_this_dir(path, files)
+            # make up the pattern to compile into our regex engine
+            # The path given (sans delimiter), followed by the delimiter,
+            # followed by anything that's NOT a delimiter, possibly followed by the
+            # delimiter, and that's the end oof the string!
+            regex_path = re.escape(path.rstrip(self.delimiter))
+            regex_delim = re.escape(self.delimiter)
+            pattern = '^({0}{1}[^{1}]+{1}?|{0})$'.format(regex_path, regex_delim)
+            self.log.debug("Swiftfs.restrict_to_this_dir pattern is: `%s`", pattern)
+            regex = re.compile(pattern, re.UNICODE)
+
+            new_files = []
+            for f in files:
+                if regex.match(f['name']):
+                    new_files.append(f)
+            files = new_files
 
         self.log.info("SwiftFS.listdir returning: `%s`" % files)
         return files
-
-    # Restrict the given list of files to just the ones in the current "dir"
-    def restrict_to_this_dir(self, path, files):
-        self.log.info("SwiftFS.restrict_to_this_dir has path: `%s`", path)
-        self.log.info("SwiftFS.restrict_to_this_dir has list: `%s`" % files)
-
-        if len(files) == 0:
-            return
-
-        files_in_dir = []
-        # make up the pattern to compile into our regex engine
-        # The path given (sans delimiter), followed by the delimiter,
-        # followed by anything that's NOT a delimiter, possibly followed by the
-        # delimiter, and that's the end oof the string!
-        pattern = re.escape(path.rstrip(self.delimiter))
-        pattern = pattern + '(?:(?:' + self.delimiter + ')?[^' + self.delimiter + ']+'
-        pattern = pattern + self.delimiter + '?)?'
-        pattern = pattern + '$'
-        self.log.debug("Swiftfs.restrict_to_this_dir pattern is: `%s`", pattern)
-        regex = re.compile(pattern, re.UNICODE)
-        for f in files:
-            self.log.debug("Swiftfs.restrict_to_this_dir checking: `%s`",
-                           f['name'])
-            # do we want this file?
-            if regex.match(f['name']) and (f['name'] != path.rstrip(self.delimiter) + self.delimiter):
-                self.log.debug("Swiftfs.restrict_to_this_dir keeping")
-                files_in_dir.append(f)
-            else:
-                self.log.debug("Swiftfs.restrict_to_this_dir ignoring")
-        return files_in_dir
 
     # We can 'stat' files, but not directories
     def isfile(self, path):
@@ -295,6 +279,7 @@ class SwiftFS(HasTraits):
                     os.remove(r['path'])
         except SwiftError as e:
             self.log.error("SwiftFS.read %s", e.value)
+        print("returning %s" % content)
         return content
 
     # Write is 'upload' and 'upload' needs a "file" it can read from
