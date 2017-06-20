@@ -174,77 +174,87 @@ class SwiftFS(HasTraits):
 
     def cp(self, old_path, new_path):
         self.log.info("SwiftFS.copy `%s` to `%s`", old_path, new_path)
-        self._manipulate_object_name(old_path, new_path, with_delete=False)
+        self._copymove(old_path, new_path, with_delete=False)
 
     def mv(self, old_path, new_path):
         self.log.info("SwiftFS.mv `%s` to `%s`", old_path, new_path)
-        self._manipulate_object_name(old_path, new_path, with_delete=True)
+        self._copymove(old_path, new_path, with_delete=True)
 
-    def rm(self, path):
+    def rm(self, path, recursive=False):
         self.log.info("SwiftFS.rm `%s`", path)
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
             self.do_error('Cannot delete root directory', code=400)
             return False
-        #  ####### Need to add code to not delete a "dir" object that has
-        #  sub-dirs or files "under" it.
-        files = self.listdir(path)
-        if len(files) > 0:
-            self.do_error("directory %s not empty" % path, code=400)
-            return False
-        try:
-            response = self.swift.delete(container=self.container,
-                                    objects=[path])
-            for r in response:
-                self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
-                               r['action'], r['success'])
-        except SwiftError as e:
-            self.log.error("SwiftFS.rm %s", e.value)
+
+        if recursive:
+            for f in self._walk_path(path, dir_first=True):
+                self.rm(f)
+        else:
+            files = self.listdir(path)
+            if len(files) > 1:
+                self.do_error("directory %s not empty" % path, code=400)
+                return False
+
+            try:
+                response = self.swift.delete(container=self.container,
+                                        objects=[path])
+                for r in response:
+                    self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
+                                   r['action'], r['success'])
+            except SwiftError as e:
+                self.log.error("SwiftFS.rm %s", e.value)
+
+    def _walk_path(self, path, dir_first=False):
+        self.log.info("SwiftFS. _walk_path path `%s` with dir_first `%s`" % (path, str(dir_first) ) )
+        for f in self.listdir(path):
+            if not dir_first:
+                yield f['name']
+            if self.guess_type(f['name']) == 'directory':
+                for ff in self._walk_path(f['name'], dir_first=dir_first):
+                    yield ff
+            if dir_first:
+                yield f['name']
 
     # core function to copy or move file-objects
     # does clever recursive stuff for directory trees
-    def _manipulate_object_name(self, old_path, new_path, with_delete=False):
-        self.log.info("SwiftFS. _manipulate_object_name from `%s` to `%s`, with delete flag `%a`", old_path, new_path, str(with_delete) )
+    def _copymove(self, old_path, new_path, with_delete=False):
+        self.log.info("SwiftFS. _copymove from `%s` to `%s`, with delete flag `%a`", old_path, new_path, str(with_delete) )
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
-        if self.guess_type(old_path) != 'directory':
-            try:
-                response = self.swift.copy(self.container, [old_path],
-                                      {'destination': self.delimiter +
-                                       self.container +
-                                       self.delimiter +
-                                       new_path})
-            except SwiftError as e:
-                self.log.error(e.value)
-                raise 
-            for r in response:
-                if r["success"]:
-                    if r["action"] == "copy_object":
-                        self.log.debug(
-                            "object %s copied from /%s/%s" %
-                           (r["destination"], r["container"], r["object"])
-                        )
-                    if r["action"] == "create_container":
-                        self.log.debug(
-                            "container %s created" % r["container"]
-                        )
-                else:
-                    if "error" in r and isinstance(r["error"], Exception):
-                        raise r["error"]
-        else:
-            self.mkdir(new_path)
-            # do some clever listdir & rename
-            files = self.listdir(old_path)
-            for f in files:
-                old_file = f['name']
-                # substitution returns the new string, it doesn't modify the
-                # given string
-                new_file = re.sub(re.escape(old_path), new_path, old_file, count=1)
-                self._manipulate_object_name(old_file, new_file, with_delete=with_delete)
+
+        for f in self._walk_path(old_path):
+            new_f = f.replace(old_path, new_path, 1)
+            if self.guess_type(f) == 'directory':
+                self.mkdir(new_f)
+            else:
+                try:
+                    response = self.swift.copy(self.container, [f],
+                                          {'destination': self.delimiter +
+                                           self.container +
+                                           self.delimiter +
+                                           new_f})
+                except SwiftError as e:
+                    self.log.error(e.value)
+                    raise 
+                for r in response:
+                    if r["success"]:
+                        if r["action"] == "copy_object":
+                            self.log.debug(
+                                "object %s copied from /%s/%s" %
+                               (r["destination"], r["container"], r["object"])
+                            )
+                        if r["action"] == "create_container":
+                            self.log.debug(
+                                "container %s created" % r["container"]
+                            )
+                    else:
+                        if "error" in r and isinstance(r["error"], Exception):
+                            raise r["error"]
         # we always test for delete: file or directory...
         if with_delete:
-            self.rm(old_path)
+            self.rm(old_path, recursive=True)
 
     # Directories are just objects that have a trailing '/'
     def mkdir(self, path):

@@ -1,6 +1,6 @@
 import os
 import shutil
-from pprint import pprint
+#from pprint import pprint
 
 from swiftcontents.ipycompat import TestContentsManager
 
@@ -50,7 +50,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         cm.log.info("test suite create clean working space")
         files = cm.swiftfs.listdir(path, this_dir_only=False)
         for f in files:
-            cm.swiftfs.rm( f['name'] )
+            cm.swiftfs.rm( f['name'], recursive=True )
 
     # Build the data as defined in self.all_dirs et al
     def make_data(self):
@@ -196,14 +196,16 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         # test mv_dir renames a directory, and all sub-objects
         cm.log.info("test_swiftfs_ian move " + from_path  + " to " + to_path + ": should modify all 'sub-directory' objects")
-        print("list dir for " + from_path)
         expected = set()
         for f in self.get_list_of_files():
-            if f.startswith(from_path):
+            if f.startswith(from_path) and f != from_path:
                 expected.add(f.replace(from_path, to_path, 1))
         cm.swiftfs.mv(from_path, to_path)
         returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(to_path, this_dir_only=False) ) )
         self.assertFalse(expected ^ returns) # there should be no difference
+
+        self.assertFalse(cm.swiftfs.listdir(from_path)) # Old dir has disappeared
+
         self.clear_store(self.all_dirs[0])
 
     # does deleting dirs handle non-empty dirs properly
