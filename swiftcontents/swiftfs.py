@@ -172,46 +172,41 @@ class SwiftFS(HasTraits):
         self.log.debug("isdir returning %s",_isdir)
         return _isdir
 
-    # We need to determine if the old_path is a file or a directory.
-    # If it's a file, we copy it & remove the file
-    # If it's a directory, handle it differently.
-    def mv(self, old_path, new_path):
-        self.log.info("SwiftFS.mv `%s` to `%s`", old_path, new_path)
-        if self.guess_type(old_path) == 'directory':
-            self.mv_dir(old_path, new_path)
-        else:
-            self.cp(old_path, new_path)
-            self.rm(old_path)
-
-    # We need to determine if the old_path is a file or a directory.
-    # If it's a directory, then we need to do that process for every object that
-    # matches that prefix.
-    def mv_dir(self, old_path, new_path):
-        self.log.info("SwiftFS.mv_dir `%s` to `%s`", old_path, new_path)
-        if self.guess_type(old_path) != 'directory':
-            self.mv(old_path, new_path)
-        else:
-            old_path = old_path.rstrip(self.delimiter) + self.delimiter
-            new_path = new_path.rstrip(self.delimiter) + self.delimiter
-            files = self.listdir(old_path, this_dir_only=False)
-            for f in files:
-                old_file = f['name']
-                # substitution returns the new string, it doesn't modify the
-                # given string
-                new_file = re.sub(re.escape(old_path), new_path,
-                                  old_file, count=1)
-                self.log.debug("SwiftFS.mv_dir `%s' -> `%s` => `%s` -> `%s`",
-                               old_path, new_path, old_file, new_file)
-                self.cp(old_file, new_file)
-                self.rm(old_file)
-
     def cp(self, old_path, new_path):
         self.log.info("SwiftFS.copy `%s` to `%s`", old_path, new_path)
+        self._manipulate_object_name(old_path, new_path, with_delete=False)
+
+    def mv(self, old_path, new_path):
+        self.log.info("SwiftFS.mv `%s` to `%s`", old_path, new_path)
+        self._manipulate_object_name(old_path, new_path, with_delete=True)
+
+    def rm(self, path):
+        self.log.info("SwiftFS.rm `%s`", path)
+        path = self.clean_path(path)
+
+        if path in ["", self.delimiter]:
+            self.do_error('Cannot delete root directory', code=400)
+            return False
+        #  ####### Need to add code to not delete a "dir" object that has
+        #  sub-dirs or files "under" it.
+        files = self.listdir(path)
+
+        try:
+            response = self.swift.delete(container=self.container,
+                                    objects=[path])
+            for r in response:
+                self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
+                               r['action'], r['success'])
+        except SwiftError as e:
+            self.log.error("SwiftFS.rm %s", e.value)
+
+    # core function to copy or move file-objects
+    # does clever recursive stuff for directory trees
+    def _manipulate_object_name(self, old_path, new_path, with_delete=False):
+        self.log.info("SwiftFS. _manipulate_object_name from `%s` to `%s`, with delete flag `%a`", old_path, new_path, str(with_delete) )
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
-        if self.guess_type(old_path) == 'directory':
-            self.mkdir(new_path):
-        else:
+        if self.guess_type(old_path) != 'directory':
             try:
                 response = self.swift.copy(self.container, [old_path],
                                       {'destination': self.delimiter +
@@ -220,6 +215,7 @@ class SwiftFS(HasTraits):
                                        new_path})
             except SwiftError as e:
                 self.log.error(e.value)
+                raise 
             for r in response:
                 if r["success"]:
                     if r["action"] == "copy_object":
@@ -234,26 +230,19 @@ class SwiftFS(HasTraits):
                 else:
                     if "error" in r and isinstance(r["error"], Exception):
                         raise r["error"]
-
-    def rm(self, path):
-        self.log.info("SwiftFS.rm `%s`", path)
-        path = self.clean_path(path)
-
-        if path in ["", self.delimiter]:
-            self.do_error('Cannot delete root directory', code=400)
-            return False
-        #  ####### Need to add code to not delete a "dir" object that has
-        #  sub-dirs or files "under" it.
-        files = self.listdir(path, this_dir_only=False)
-
-        try:
-            response = self.swift.delete(container=self.container,
-                                    objects=[path])
-            for r in response:
-                self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
-                               r['action'], r['success'])
-        except SwiftError as e:
-            self.log.error("SwiftFS.rm %s", e.value)
+        else:
+            self.mkdir(new_path)
+            # do some clever listdir & rename
+            files = self.listdir(old_path, this_dir_only=False)
+            for f in files:
+                old_file = f['name']
+                # substitution returns the new string, it doesn't modify the
+                # given string
+                new_file = re.sub(re.escape(old_path), new_path, old_file, count=1)
+                self._manipulate_object_name(old_file, new_file, with_delete=with_delete)
+        # we always test for delete: file or directory...
+        if with_delete:
+            self.rm(old_path)
 
     # Directories are just objects that have a trailing '/'
     def mkdir(self, path):
@@ -261,7 +250,7 @@ class SwiftFS(HasTraits):
         path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
-        return self._do_write(path, None)
+        self._do_write(path, None)
 
     # This works by downloading the file to disk then reading the contents of
     # that file into memory, before deleting the file
@@ -337,12 +326,12 @@ class SwiftFS(HasTraits):
                 for r in response:
                     self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
                                    r['action'], r['success'])
-                return True
             except SwiftError as e:
                 self.log.error("SwiftFS._do_write swift-error: %s", e.value)
+                raise
             except ClientException as e:
                 self.log.error("SwiftFS._do_write client-error: %s", e.value)
-        return False
+                raise
 
     def guess_type(self, path, allow_directory=True):
         """
