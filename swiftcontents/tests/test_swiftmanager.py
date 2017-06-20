@@ -226,21 +226,13 @@ class SwiftContentsManagerTestCase(TestContentsManager):
     def test_swiftfs_ian_tree_test(self):
         cm = self.contents_manager
         self.clear_store(self.all_dirs[0])
-        self.make_data()
         from_path = 'ian/magi/kiz/custard/cat.dog'
 
         cm.log.info("test_swiftfs_ian create '%s' (and all intermediate sub_dirs)", from_path)
-        cm.swiftfs.write(from_path, content)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp', this_dir_only=False) ) )
-        expected = list(map( lambda x: x + '/', self.all_dirs))
-        expected.append(self.all_dirs[-1] + '/' + self.test_filename)
-        expected = set(expected)
-        self.assertFalse(expected ^ returns) # there should be no difference
+        cm.swiftfs.write(from_path, self.content)
 
-        # Now lets try reading the files contents
-        cm.log.info("test_swiftfs_ian read the test file")
-        data = cm.swiftfs.read(from_path)
-        self.assertEquals(data, content)
+        files = cm.swiftfs.listdir('ian/magi/')
+        self.assertTrue(list(files)[0]['name'] == 'ian/magi/kiz/')
 
         self.clear_store(self.all_dirs[0])
 
