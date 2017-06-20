@@ -44,6 +44,40 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         self.contents_manager.log.info("--------------------------------------")
 
+    # clear all the objects that include 'path' in the "filename"
+    def clear_store(self, path):
+        cm = self.contents_manager
+        cm.log.info("test suite create clean working space")
+        files = cm.swiftfs.listdir(path, this_dir_only=False)
+        for f in files:
+            cm.swiftfs.rm( f['name'] )
+
+    # Build the data as defined in self.all_dirs et al
+    def make_data(self):
+        cm = self.contents_manager
+        cm.log.info("test suite make_data")
+
+        # test mkdir
+        for _dir in self.all_dirs:
+            cm.log.info("test_swiftfs_ian test mkdir for '%s'", _dir)
+            cm.swiftfs.mkdir(_dir)
+
+        # put a file in each directory
+        for _dir in self.all_dirs:
+            path = _dir + '/' + self.test_filename
+            cm.log.info("test_swiftfs_ian create file '%s'", path)
+            cm.swiftfs._do_write(path, self.content)
+
+    # returns all the directories & files created by self.made_data
+    def get_list_of_files(self):
+        files = set()
+        for _dir in self.all_dirs:
+            directory = _dir+ '/'
+            if self.all_dirs_sub[_dir]:
+                files.add(directory + self.all_dirs_sub[_dir] + '/')
+            files.add(directory + self.test_filename)
+        return files
+
     # simple stuff that doesn't touch the filestore
     def test_swiftfs_ian_nonfs(self):
         cm = self.contents_manager
@@ -63,38 +97,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         cm.log.info("test_swiftfs_ian test do_error")
         self.assertRaises(HTTPError, lambda: cm.swiftfs.do_error("Lorem ipsum dolor sit amet, consectetur adipiscing elit"))
 
-
-    def clear_store(self, path):
-        cm = self.contents_manager
-        cm.log.info("test suite create clean working space")
-        files = cm.swiftfs.listdir(path, this_dir_only=False)
-        for f in files:
-            cm.swiftfs.rm( f['name'] )
-
-    def make_data(self):
-        cm = self.contents_manager
-        cm.log.info("test suite make_data")
-
-        # test mkdir
-        for _dir in self.all_dirs:
-            cm.log.info("test_swiftfs_ian test mkdir for '%s'", _dir)
-            cm.swiftfs.mkdir(_dir)
-
-        # put a file in each directory
-        for _dir in self.all_dirs:
-            path = _dir + '/' + self.test_filename
-            cm.log.info("test_swiftfs_ian create file '%s'", path)
-            cm.swiftfs._do_write(path, self.content)
-
-    def get_list_of_files(self):
-        files = set()
-        for _dir in self.all_dirs:
-            directory = _dir+ '/'
-            #if self.all_dirs_sub[_dir]:
-            #    files.add(directory + self.all_dirs_sub[_dir] + '/')
-            files.add(directory + self.test_filename)
-        return files
-
+    # Test dirs are dirs, and files are files, and listdir works as it should
     def test_swiftfs_ian_istests(self):
         cm = self.contents_manager
         self.clear_store(self.all_dirs[0])
@@ -114,9 +117,13 @@ class SwiftContentsManagerTestCase(TestContentsManager):
             self.assertIs(cm.swiftfs.isfile(path), True)
 
         # test listdir (normal mode)
-        files = self.get_list_of_files()
+        # gets just the sub-dir & the data-file
         for _dir in self.all_dirs:
             directory = _dir+ '/'
+            files = set()
+            if self.all_dirs_sub[_dir]:
+                files.add(directory + self.all_dirs_sub[_dir] + '/')
+            files.add(directory + self.test_filename)
             cm.log.info("test_swiftfs_ian test listdir (normal-mode for '%s': should return %s", _dir, files)
             returns = set(map(lambda x: x['name'], cm.swiftfs.listdir(_dir)))
             self.assertFalse(files ^ returns) # there should be no difference
@@ -136,7 +143,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         self.clear_store(self.all_dirs[0])
 
-
+    # rename a directory with known sub-objects
     def test_swiftfs_ian_manipulate_files(self):
         cm = self.contents_manager
         self.clear_store(self.all_dirs[0])
@@ -180,33 +187,39 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
         self.clear_store(self.all_dirs[0])
 
-    def test_swiftfs_ian_manipulate_dirs(self):
+    def test_swiftfs_ian_rename_dir(self):
         cm = self.contents_manager
         self.clear_store(self.all_dirs[0])
         self.make_data()
         from_path = self.all_dirs[1] + '/'
         to_path = self.all_dirs[1] + 'l/'
+        print("mv_dir")
 
         # test mv_dir renames a directory, and all sub-objects
         cm.log.info("test_swiftfs_ian move " + from_path  + " to " + to_path + ": should modify all 'sub-directory' objects")
+        print("list dir for " + from_path)
+        pre_move = cm.swiftfs.listdir(from_path, this_dir_only=False)
+        print("pre move")
+        pprint(pre_move)
         expected = set()
-        got_back = cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False)
         for f in self.get_list_of_files():
             if f.startswith(from_path):
                 expected.add(f.replace(from_path, to_path, 1))
-        cm.swiftfs.mv_dir(from_path, to_path)
-        got_back = cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False)
-        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[1], this_dir_only=False) ) )
-        print("mv_dir")
-        print("expected")
+        print("expect back")
         pprint(expected)
+        cm.swiftfs.mv_dir(from_path, to_path)
+        got_back = cm.swiftfs.listdir(to_path, this_dir_only=False)
         print("got_back")
         pprint(got_back)
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(to_path, this_dir_only=False) ) )
         print("returns")
         pprint(returns)
-        self.assertFalse(expected ^ returns) # there should be no difference
+        out_of_interest = cm.swiftfs.listdir(self.all_dirs[0], this_dir_only=False)
+        print("out of interest")
+        pprint(out_of_interest)
 
-        self.clear_store(self.all_dirs[0])
+        self.assertFalse(expected ^ returns) # there should be no difference
+#        self.clear_store(self.all_dirs[0])
 
     # Does making a file some way down a tree make all the intermediate "directories"?
     # (first we need to get rid of the existing temp tree)
