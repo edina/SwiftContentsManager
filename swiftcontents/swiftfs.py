@@ -94,12 +94,12 @@ class SwiftFS(HasTraits):
 
         if this_dir_only:
             # make up the pattern to compile into our regex engine
-            # The path given (sans delimiter), followed by the delimiter,
-            # followed by anything that's NOT a delimiter, possibly followed by the
-            # delimiter, and that's the end oof the string!
-            regex_path = re.escape(path.rstrip(self.delimiter))
             regex_delim = re.escape(self.delimiter)
-            pattern = '^({0}{1}[^{1}]+{1}?|{0})$'.format(regex_path, regex_delim)
+            if len(path) > 0:
+                regex_path = re.escape(path.rstrip(self.delimiter))
+                pattern = '^({0}{1}[^{1}]+{1}?|{0})$'.format(regex_path, regex_delim)
+            else:
+                pattern = '^[^{0}]+{0}?$'.format(regex_delim)
             self.log.debug("Swiftfs.restrict_to_this_dir pattern is: `%s`", pattern)
             regex = re.compile(pattern, re.UNICODE)
 

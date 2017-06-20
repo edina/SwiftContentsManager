@@ -1,6 +1,6 @@
 import os
 import shutil
-#from pprint import pprint
+from pprint import pprint
 
 from swiftcontents.ipycompat import TestContentsManager
 
@@ -48,9 +48,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
     def clear_store(self, path):
         cm = self.contents_manager
         cm.log.info("test suite create clean working space")
-        files = cm.swiftfs.listdir(path, this_dir_only=False)
-        for f in files:
-            cm.swiftfs.rm( f['name'], recursive=True )
+        cm.swiftfs.rm( path, recursive=True )
 
     # Build the data as defined in self.all_dirs et al
     def make_data(self):
@@ -141,6 +139,11 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         returns2 = set(map( lambda x: x['name'], cm.swiftfs.listdir('temp', this_dir_only=False) ) )
         self.assertFalse(returns2 ^ returns) # there should be no difference
 
+        # test listdir copes with root dir
+        path = ''
+        returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(path) ) )
+        self.assertTrue(len(returns) > 0)
+
         self.clear_store(self.all_dirs[0])
 
     # rename a directory with known sub-objects
@@ -183,9 +186,9 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         cm.swiftfs.rm(from_path)
         cm.log.info("listdir looking no files in " + self.all_dirs[-1])
         returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(self.all_dirs[-1])))
-        self.assertFalse(len(returns))
 
         self.clear_store(self.all_dirs[0])
+        self.assertFalse(len(returns))
 
     def test_swiftfs_ian_rename_dir(self):
         cm = self.contents_manager
