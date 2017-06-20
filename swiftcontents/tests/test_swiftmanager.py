@@ -193,33 +193,31 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         self.make_data()
         from_path = self.all_dirs[1] + '/'
         to_path = self.all_dirs[1] + 'l/'
-        print("mv_dir")
 
         # test mv_dir renames a directory, and all sub-objects
         cm.log.info("test_swiftfs_ian move " + from_path  + " to " + to_path + ": should modify all 'sub-directory' objects")
         print("list dir for " + from_path)
-        pre_move = cm.swiftfs.listdir(from_path, this_dir_only=False)
-        print("pre move")
-        pprint(pre_move)
         expected = set()
         for f in self.get_list_of_files():
             if f.startswith(from_path):
                 expected.add(f.replace(from_path, to_path, 1))
-        print("expect back")
-        pprint(expected)
-        cm.swiftfs.mv_dir(from_path, to_path)
-        got_back = cm.swiftfs.listdir(to_path, this_dir_only=False)
-        print("got_back")
-        pprint(got_back)
+        cm.swiftfs.mv(from_path, to_path)
         returns = set(map( lambda x: x['name'], cm.swiftfs.listdir(to_path, this_dir_only=False) ) )
-        print("returns")
-        pprint(returns)
-        out_of_interest = cm.swiftfs.listdir(self.all_dirs[0], this_dir_only=False)
-        print("out of interest")
-        pprint(out_of_interest)
-
         self.assertFalse(expected ^ returns) # there should be no difference
-#        self.clear_store(self.all_dirs[0])
+        self.clear_store(self.all_dirs[0])
+
+    # does deleting dirs handle non-empty dirs properly
+    def test_swiftfs_ian_deletes(self):
+        cm = self.contents_manager
+        self.clear_store(self.all_dirs[0])
+        self.make_data()
+
+        path = self.all_dirs[-1]
+        self.assertFalse(cm.swiftfs.rm(path))
+        self.assertTrue(cm.swiftfs.rm(path + self.delimiter + self.test_filename))
+        self.assertTrue(cm.swiftfs.rm(path))
+
+        self.clear_store(self.all_dirs[0])
 
     # Does making a file some way down a tree make all the intermediate "directories"?
     # (first we need to get rid of the existing temp tree)

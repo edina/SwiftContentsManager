@@ -12,7 +12,7 @@ from keystoneauth1 import session
 from keystoneauth1.identity import v3
 from tornado.web import HTTPError
 from traitlets import default, HasTraits, Unicode, Any, Instance
-# from pprint import pprint
+#from pprint import pprint
 
 
 class SwiftFS(HasTraits):
@@ -190,7 +190,9 @@ class SwiftFS(HasTraits):
         #  ####### Need to add code to not delete a "dir" object that has
         #  sub-dirs or files "under" it.
         files = self.listdir(path)
-
+        if len(files) > 0:
+            self.do_error("directory %s not empty" % path, code=400)
+            return False
         try:
             response = self.swift.delete(container=self.container,
                                     objects=[path])
@@ -233,7 +235,7 @@ class SwiftFS(HasTraits):
         else:
             self.mkdir(new_path)
             # do some clever listdir & rename
-            files = self.listdir(old_path, this_dir_only=False)
+            files = self.listdir(old_path)
             for f in files:
                 old_file = f['name']
                 # substitution returns the new string, it doesn't modify the
@@ -271,7 +273,6 @@ class SwiftFS(HasTraits):
                     os.remove(r['path'])
         except SwiftError as e:
             self.log.error("SwiftFS.read %s", e.value)
-        print("returning %s" % content)
         return content
 
     # Write is 'upload' and 'upload' needs a "file" it can read from
