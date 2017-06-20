@@ -209,18 +209,23 @@ class SwiftFS(HasTraits):
         self.log.info("SwiftFS.copy `%s` to `%s`", old_path, new_path)
         old_path = self.clean_path(old_path)
         new_path = self.clean_path(new_path)
-        try:
-            response = self.swift.copy(self.container, [old_path],
-                                  {'destination': self.delimiter +
-                                   self.container +
-                                   self.delimiter +
-                                   new_path})
+        if self.guess_type(old_path) == 'directory':
+            self.mkdir(new_path):
+        else:
+            try:
+                response = self.swift.copy(self.container, [old_path],
+                                      {'destination': self.delimiter +
+                                       self.container +
+                                       self.delimiter +
+                                       new_path})
+            except SwiftError as e:
+                self.log.error(e.value)
             for r in response:
                 if r["success"]:
                     if r["action"] == "copy_object":
                         self.log.debug(
                             "object %s copied from /%s/%s" %
-                            (r["destination"], r["container"], r["object"])
+                           (r["destination"], r["container"], r["object"])
                         )
                     if r["action"] == "create_container":
                         self.log.debug(
@@ -229,8 +234,6 @@ class SwiftFS(HasTraits):
                 else:
                     if "error" in r and isinstance(r["error"], Exception):
                         raise r["error"]
-        except SwiftError as e:
-            self.log.error(e.value)
 
     def rm(self, path):
         self.log.info("SwiftFS.rm `%s`", path)
@@ -258,7 +261,7 @@ class SwiftFS(HasTraits):
         path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
-        self._do_write(path, None)
+        return self._do_write(path, None)
 
     # This works by downloading the file to disk then reading the contents of
     # that file into memory, before deleting the file
@@ -334,10 +337,12 @@ class SwiftFS(HasTraits):
                 for r in response:
                     self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
                                    r['action'], r['success'])
+                return True
             except SwiftError as e:
                 self.log.error("SwiftFS._do_write swift-error: %s", e.value)
             except ClientException as e:
                 self.log.error("SwiftFS._do_write client-error: %s", e.value)
+        return False
 
     def guess_type(self, path, allow_directory=True):
         """
