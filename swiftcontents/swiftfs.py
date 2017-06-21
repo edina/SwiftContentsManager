@@ -190,6 +190,7 @@ class SwiftFS(HasTraits):
 
         if recursive:
             for f in self._walk_path(path, dir_first=True):
+                self.log.info("SwiftFS.rm recurse into `%s`", f)
                 self.rm(f)
         else:
             files = self.listdir(path)

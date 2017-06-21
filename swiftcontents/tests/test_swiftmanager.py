@@ -14,9 +14,19 @@ class SwiftContentsManagerTestCase(TestContentsManager):
 
     # Some reference data:
     # list of dirs to make
-    all_dirs = ['temp', 'temp/bar', 'temp/bar/foo', 'temp/bar/foo/bar']
+    all_dirs = ['temp',
+                'temp/bar',
+                'temp/bar/temp',
+                'temp/bar/temp/bar',
+                'temp/bar/temp/bar/foo',
+                'temp/bar/temp/bar/foo/bar']
     # subdirectory for each dir above
-    all_dirs_sub = {'temp': 'bar', 'temp/bar': 'foo', 'temp/bar/foo': 'bar', 'temp/bar/foo/bar': ''}
+    all_dirs_sub = {'temp': 'bar',
+                    'temp/bar': 'temp',
+                    'temp/bar/temp': 'bar',
+                    'temp/bar/temp/bar': 'foo',
+                    'temp/bar/temp/bar/foo': 'bar',
+                    'temp/bar/temp/bar/foo/bar': ''}
     # name of text file
     test_filename = 'hello.txt'
     # content of text file
