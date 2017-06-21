@@ -65,10 +65,22 @@ class Test_SwiftNoFS(object):
         self.swiftfs.mkdir(p)
         log.info('test directory exists')
         assert_true (self.swiftfs.isdir(p))
+        assert_false(self.swiftfs.isfile(p))
         log.info('test directory can be deleted')
         self.swiftfs.rm(p)
         log.info('test directory is gone')
         assert_false (self.swiftfs.isdir(p))
+
+    def test_file(self):
+        log.info('test create a file')
+        p = 'a_test_file.txt'
+        self.swiftfs._do_write(p, testFileContent)
+        assert_false (self.swiftfs.isdir(p))
+        assert_true (self.swiftfs.isfile(p))
+        log.info('test file can be deleted')
+        self.swiftfs.rm(p)
+        log.info('test file is gone')
+        assert_false (self.swiftfs.isfile(p))
         
 class Test_SwiftFS(object):
     def __init__(self):
@@ -86,9 +98,14 @@ class Test_SwiftFS(object):
     def teardown(self):
         log.info('tidy up directory structure')
         self.swiftfs.rm(testDirectories[0],recursive=True)
+        assert_false(self.swiftfs.isdir(testDirectories[0]))
 
-    def test_directories(self):
+    def test_setup(self):
         log.info('check all directories exist')
         for d in testDirectories:
             assert_true(self.swiftfs.isdir(d))
-        
+            assert_false(self.swiftfs.isfile(d))
+        log.info('check all test files exist')
+        for d in testDirectories:
+            p = d+testFileName
+            assert_true(self.swiftfs.isfile(p))
