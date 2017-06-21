@@ -237,7 +237,7 @@ class SwiftContentsManagerTestCase(TestContentsManager):
         files = cm.swiftfs.listdir('ian/magi/')
         self.assertTrue(list(files)[0]['name'] == 'ian/magi/kiz/')
 
-        self.clear_store(self.all_dirs[0])
+        self.clear_store('ian')
 
     def test_rename_ian(self):
         cm = self.contents_manager
