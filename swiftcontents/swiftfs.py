@@ -30,9 +30,11 @@ class SwiftFS(HasTraits):
 
     root_dir = Unicode("/", config=True)
 
-    def __init__(self, log, **kwargs):
+    log = logging.getLogger('SwiftFS')
+
+    
+    def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
-        self.log = logging.getLogger('SwiftFS')
 
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
