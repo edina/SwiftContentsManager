@@ -1,19 +1,20 @@
 import logging
-from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true
+from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false
 from swiftcontents.swiftfs import SwiftFS, HTTPError
 
 # list of dirs to make
-testDirectories = ['temp',
-                   'temp/bar',
-                   'temp/bar/temp',
-                   'temp/bar/temp/bar',
-                   'temp/bar/temp/bar/foo',
-                   'temp/bar/temp/bar/foo/bar',
-                   'temp/baz',
-                   'temp/baz/temp',
-                   'temp/baz/temp/bar',
-                   'temp/baz/temp/bar/foo',
-                   'temp/baz/temp/bar/foo/bar']
+# note, directory names must end with a /
+testDirectories = ['temp/',
+                   'temp/bar/',
+                   'temp/bar/temp/',
+                   'temp/bar/temp/bar/',
+                   'temp/bar/temp/bar/foo/',
+                   'temp/bar/temp/bar/foo/bar/',
+                   'temp/baz/',
+                   'temp/baz/temp/',
+                   'temp/baz/temp/bar/',
+                   'temp/baz/temp/bar/foo/',
+                   'temp/baz/temp/bar/foo/bar/']
 testFileName = 'hello.txt'
 testFileContent = 'Hello world'
 
@@ -60,7 +61,7 @@ class Test_SwiftNoFS(object):
         
     def test_directory(self):
         log.info('test creating a directory')
-        p = testDirectories[0]
+        p = 'a_test_dir/'
         self.swiftfs.mkdir(p)
         log.info('test directory exists')
         assert_true (self.swiftfs.isdir(p))
@@ -79,12 +80,12 @@ class Test_SwiftFS(object):
             self.swiftfs.mkdir(d)
         log.info('create a bunch of files')
         for d in testDirectories:
-            p = d+self.swiftfs.delimiter+testFileName
+            p = d+testFileName
             self.swiftfs._do_write(p, testFileContent)
 
     def teardown(self):
         log.info('tidy up directory structure')
-        self.swiftfs.rm(testDirectories[0])
+        self.swiftfs.rm(testDirectories[0],recursive=True)
 
     def test_directories(self):
         log.info('check all directories exist')
