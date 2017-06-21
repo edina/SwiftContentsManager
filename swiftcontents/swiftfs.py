@@ -202,6 +202,8 @@ class SwiftFS(HasTraits):
                 self.log.error("SwiftFS.rm %s", e.value)
 
     def _walk_path(self, path, dir_first=False):
+        if not dir_first:
+            yield path
         for f in self.listdir(path):
             if not dir_first:
                 yield f['name']
@@ -210,6 +212,8 @@ class SwiftFS(HasTraits):
                     yield ff
             if dir_first:
                 yield f['name']
+        if dir_first:
+            yield path
 
     # core function to copy or move file-objects
     # does clever recursive stuff for directory trees
