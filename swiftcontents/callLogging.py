@@ -9,10 +9,12 @@ __all__ = ['logMethods']
 
 def logFunctionCall(log,oFunc,clsName=None):
     def loggedFunction(*args,**kwargs):
-        msg = 'calling '
         if clsName is not None:
-            msg+=clsName+'.'
-        msg += '%s('%oFunc.__name__
+            fName = '%s.%s'%(clsName,oFunc.__name__)
+        else:
+            fName = oFunc.__name__
+        
+        msg = 'calling %s('%fName
         for a in args:
             msg+=repr(a)+','
         for k in kwargs:
