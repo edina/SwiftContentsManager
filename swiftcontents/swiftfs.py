@@ -33,10 +33,10 @@ class SwiftFS(HasTraits):
     def __init__(self, log, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
         self.log = logging.getLogger('SwiftFS')
-        self.log.info("SwiftContents[SwiftFS] container: `%s`", self.container)
 
         # With the python swift client, the connection is automagically
         # created using environment variables (I know... horrible or what?)
+        self.log.info("using swift container `%s`", self.container)
 
         # open connection to swift container
         self.swift = SwiftService()
@@ -53,8 +53,6 @@ class SwiftFS(HasTraits):
             self.log.error(msg)
             raise HTTPError(404,msg)
 
-
-        self.log.info("using container `%s`", self.container)
 
     # see 'list' at https://docs.openstack.org/developer/python-swiftclient/service-api.html
     # Returns a list of all objects that start with the prefix given
@@ -101,7 +99,7 @@ class SwiftFS(HasTraits):
                 pattern = '^({0}{1}[^{1}]+{1}?|{0})$'.format(regex_path, regex_delim)
             else:
                 pattern = '^[^{0}]+{0}?$'.format(regex_delim)
-            self.log.debug("Swiftfs.restrict_to_this_dir pattern is: `%s`", pattern)
+            self.log.debug("restrict directory pattern is: `%s`", pattern)
             regex = re.compile(pattern, re.UNICODE)
 
             new_files = []
@@ -110,7 +108,7 @@ class SwiftFS(HasTraits):
                     new_files.append(f)
             files = new_files
 
-        self.log.info("SwiftFS.listdir returning: `%s`" % files)
+        self.log.debug("SwiftFS.listdir returning: `%s`" % files)
         return files
 
     # We can 'stat' files, but not directories
@@ -120,8 +118,6 @@ class SwiftFS(HasTraits):
         if path is None or path == '':
             self.log.debug("SwiftFS.isfile has no path, returning False")
             return False
-
-        self.log.debug("SwiftFS.isfile path truncated to `%s`", path)
 
         _isfile = False
         if not path.endswith(self.delimiter):
@@ -150,7 +146,7 @@ class SwiftFS(HasTraits):
 
         # Root directory checks
         if path == self.delimiter:  # effectively root directory
-            self.log.info("SwiftFS.isdir found root dir - returning True")
+            self.log.debug("SwiftFS.isdir found root dir - returning True")
             return True
 
         _isdir = False
@@ -186,7 +182,7 @@ class SwiftFS(HasTraits):
 
         if recursive:
             for f in self._walk_path(path, dir_first=True):
-                self.log.info("SwiftFS.rm recurse into `%s`", f)
+                self.log.debug("SwiftFS.rm recurse into `%s`", f)
                 self.rm(f)
         else:
             files = self.listdir(path)
@@ -204,7 +200,6 @@ class SwiftFS(HasTraits):
                 self.log.error("SwiftFS.rm %s", e.value)
 
     def _walk_path(self, path, dir_first=False):
-        self.log.info("SwiftFS. _walk_path path `%s` with dir_first `%s`" % (path, str(dir_first) ) )
         for f in self.listdir(path):
             if not dir_first:
                 yield f['name']
@@ -297,7 +292,7 @@ class SwiftFS(HasTraits):
         for p in path_parts[:-1]:
             this_path = current_path + p + self.delimiter
             if self.isfile(this_path):
-                self.log.debug(
+                self.log.error(
                     "SwiftFS._make_intermedate_dirs failure: dir exists at path `%s`"
                     % this_path)
                 return False
@@ -305,7 +300,7 @@ class SwiftFS(HasTraits):
                 self.log.debug("SwiftFS._make_intermedate_dirs making directory")
                 self._do_write(this_path, None)
             current_path = this_path
-        self.log.info("SwiftFS._make_intermedate_dirs finished")
+
         return True
 
     def _do_write(self, path, content):
@@ -352,7 +347,7 @@ class SwiftFS(HasTraits):
             _type = "directory"
         else:
             _type = "file"
-        self.log.info("Swiftfs.guess_type asserting: %s", _type)
+        self.log.debug("guess_type asserting: %s", _type)
         return _type
 
     def clean_path(self, path):
