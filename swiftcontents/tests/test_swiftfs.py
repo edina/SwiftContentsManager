@@ -1,5 +1,5 @@
 import logging
-from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false,assert_set_equal
+from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false,assert_set_equal, assert_not_in
 from swiftcontents.swiftfs import SwiftFS, HTTPError
 
 # list of dirs to make
@@ -190,7 +190,7 @@ class Test_SwiftFS(object):
         results = set()
         for r in self.swiftfs.listdir(testDirectories[0]):
             results.add(r['name'])
-        assert_equals(results,testTree[testDirectories[0]])
+        assert_not_in(fName,results)
 
     def test_move_file(self):
         log.info('test moving a file')
