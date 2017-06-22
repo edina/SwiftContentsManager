@@ -203,8 +203,8 @@ class Test_SwiftFS(object):
 
     def test_copy_directory(self):
         log.info('test copying a directory')
-        source = 'temp/bar'
-        destination = 'temp/copy_of_bar'
+        source = 'temp/bar/'
+        destination = 'temp/copy_of_bar/'
 
         expected = set()
         for d in testDirectories:
@@ -214,9 +214,40 @@ class Test_SwiftFS(object):
                 nd = d.replace(source,destination,1)
                 expected.add(nd)
                 expected.add(nd+testFileName)
+        expected.add(testFileName)
 
         self.swiftfs.cp(source,destination)
         results = set()
         for r in self.swiftfs.listdir('/',this_dir_only=False):
             results.add(r['name'])
         assert_set_equal(results,expected)
+
+    def test_move_directory(self):
+        log.info('test moving a directory')
+        source = 'temp/bar/'
+        destination = 'temp/copy_of_bar/'
+
+        expected = set()
+        for d in testDirectories:
+            if d.startswith(source):
+                nd = d.replace(source,destination,1)
+                expected.add(nd)
+                expected.add(nd+testFileName)
+            else:
+                expected.add(d)
+                expected.add(d+testFileName)
+        expected.add(testFileName)
+
+        self.swiftfs.mv(source,destination)
+        results = set()
+        for r in self.swiftfs.listdir('/',this_dir_only=False):
+            results.add(r['name'])
+        assert_set_equal(results,expected)
+
+    def test_delete_directory(self):
+        log.info("check that deleting a non-empty directory fails")
+
+        p = 'temp/bar/temp/bar/foo/bar/'
+        assert_raises(HTTPError,self.swiftfs.rm,p)
+        self.swiftfs.rm(p+testFileName)
+        assert_true(self.swiftfs.rm(p))
