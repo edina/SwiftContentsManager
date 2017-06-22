@@ -2,6 +2,7 @@ import os
 import json
 import mimetypes
 from datetime import datetime
+from dateutil.parser import parse
 from pprint import pprint
 from tornado.web import HTTPError
 from traitlets import default, Unicode, List
@@ -46,14 +47,15 @@ class SwiftContentsManager(ContentsManager):
         if type not in ["directory","notebook","file"]:
             msg = "Unknown type passed: '{}'".format(type)
             self.log.debug(msg )
-            raise ValueError(msg)
+            self.do_error(msg)
 
         # construct accessor name from type
         # eg file => _get_file
         func = getattr(self,'_get_'+type)
-            
+        metadata = self.swiftfs.listdir(path)
+
         # now call the appropriate function, with the parameters given    
-        response = func(path=path, content=content, format=format)
+        response = func(path=path, content=content, format=format, metadata=metadata)
         self.log.debug("swiftmanager.get returning")
         return response
 
@@ -155,41 +157,43 @@ class SwiftContentsManager(ContentsManager):
         self.log.debug("SwiftContents[swiftmanager] {thing} already exists: [{path}]".format(thing=thing, path=path))
         self.do_error(u"SwiftContents[swiftmanager] {thing} already exists: [{path}]".format(thing=thing, path=path), 409)
 
-    def _get_directory(self, path, content=True, format=None):
-        self.log.debug("swiftmanager._get_directory called '%s' %s %s", path, type, format)
-        return self._directory_model_from_path(path, content=content)
+    def _get_directory(self, path, content=True, format=None, metadata={}):
+        self.log.debug("swiftmanager._get_directory called '%s' %s %s %s" % (path, type, format, metadata))
+        return self._directory_model_from_path(path, content=content, metadata=metadata)
 
-    def _get_notebook(self, path, content=True, format=None):
-        self.log.debug("swiftmanager._get_notebook called '%s' %s %s", path, content, format)
-        return self._notebook_model_from_path(path, content=content, format=format)
+    def _get_notebook(self, path, content=True, format=None, metadata={}):
+        self.log.debug("swiftmanager._get_notebook called '%s' %s %s, %s" % (path, content, format, metadata))
+        return self._notebook_model_from_path(path, content=content, format=format, metadata=metadata)
 
-    def _get_file(self, path, content=True, format=None):
-        self.log.debug("swiftmanager._get_file called '%s' %s %s", path, content, format)
-        return self._file_model_from_path(path, content=content, format=format)
+    def _get_file(self, path, content=True, format=None, metadata={}):
+        self.log.debug("swiftmanager._get_file called '%s' %s %s, %s" % (path, content, format, metadata))
+        return self._file_model_from_path(path, content=content, format=format, metadata=metadata)
 
-    def _directory_model_from_path(self, path, content=False):
-        self.log.debug("swiftmanager._directory_model_from_path called '%s' %s", path, content)
+    def _directory_model_from_path(self, path, content=False, metadata={}):
+        self.log.debug("swiftmanager._directory_model_from_path called '%s' %s, %s" % (path, content, metadata))
         model = base_directory_model(path)
         if content:
             if not self.dir_exists(path):
                 self.no_such_entity(path)
             model["format"] = "json"
-            dir_list = self.swiftfs.listdir(path=path)
-            self.log.debug("swiftmanager._directory_model_from_path has dir_content '%s'", dir_list)
-            model["content"] = self._convert_file_records(dir_list)
+            #dir_list = self.swiftfs.listdir(path=path)
+            self.log.debug("swiftmanager._directory_model_from_path has dir_content '%s'", metadata)
+            model["content"] = self._convert_file_records(metadata)
         self.log.debug("swiftmanager._directory_model_from_path returning '%s'" % model)
         return model
 
-    def _notebook_model_from_path(self, path, content=False, format=None):
+    def _notebook_model_from_path(self, path, content=False, format=None, metadata={} ):
         """
         Build a notebook model from database record.
         """
-        self.log.debug("swiftmanager._notebook_model_from_path called '%s' %s", path, content)
+        self.log.debug("swiftmanager._notebook_model_from_path called '%s' %s, %s" % (path, content, metadata) )
         # path = to_api_path(record['parent_name'] + record['name'])
         model = base_model(path)
         model['type'] = 'notebook'
-        # model['last_modified'] = model['created'] = record['created_at']
-        model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
+        if 'last_modified' in metadata :
+            model['last_modified'] = model['created'] = parse(metadata['last_modified'])
+        else:
+            model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
         if content:
             self.log.debug("swiftmanager._notebook_model_from_path content flag true")
             if not self.swiftfs.isfile(path):
@@ -207,14 +211,18 @@ class SwiftContentsManager(ContentsManager):
         self.log.debug("swiftmanager._notebook_model_from_path returning '%s'" % model)
         return model
 
-    def _file_model_from_path(self, path, content=False, format=None):
+    def _file_model_from_path(self, path, content=False, format=None, metadata={}):
         """
         Build a file model from object.
         """
         self.log.debug("swiftmanager._file_model_from_path called '%s' %s", path, content)
         model = base_model(path)
         model['type'] = 'file'
-        model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
+
+        if 'last_modified' in metadata :
+            model['last_modified'] = model['created'] = parse(metadata['last_modified'])
+        else:
+            model['last_modified'] = model['created'] = DUMMY_CREATED_DATE
         if content:
             try:
                 content = self.swiftfs.read(path)
@@ -232,31 +240,31 @@ class SwiftContentsManager(ContentsManager):
         self.log.debug("swiftmanager._file_model_from_path returning '%s'" % model)
         return model
 
-    def _convert_file_records(self, paths):
+    def _convert_file_records(self, records):
         """
         Applies _notebook_model_from_swift_path or _file_model_from_swift_path to each entry of `paths`,
         depending on the result of `guess_type`.
         """
         ret = []
-        for path in paths:
-            self.log.debug("swiftmanager._convert_file_records iterating: '%s'", path)
+        for r in records:
+            self.log.debug("swiftmanager._convert_file_records iterating: '%s'" % r)
             type_ = ""
 
             # For some reason, "path" sometimes comes through as a dictionary like:
             # {'hash': 'd41d8cd98f00b204e9800998ecf8427e', 'bytes': 0, 'last_modified': '2017-05-31T09:20:22.224Z', 'name': 'foo/file.txt'}
             # in which case, we 
-            if isinstance(path, str):
-               type_ = self.swiftfs.guess_type(path)
-            else:
-               path = path['name']
-               type_ = self.swiftfs.guess_type( path )
-            self.log.debug("swiftmanager._convert_file_records type is: '%s'", type_)
+            if not isinstance(r, str):
+                path = r['name']
+
+            type_ = self.swiftfs.guess_type( path )
+
+            self.log.debug("swiftmanager._convert_file_records type is: '%s' [ %s]" % (type_, r) )
             if type_ == "notebook":
-                ret.append(self._notebook_model_from_path(path, False))
+                ret.append(self._notebook_model_from_path(path, content=False, metadata=r))
             elif type_ == "file":
-                ret.append(self._file_model_from_path(path, False, None))
+                ret.append(self._file_model_from_path(path, content=False, metadata=r))
             elif type_ == "directory":
-                ret.append(self._directory_model_from_path(path, False))
+                ret.append(self._directory_model_from_path(path, content=False, metadata=r))
             else:
                 self.do_error("Unknown file type %s for file '%s'" % (type_, path), 500)
         return ret
@@ -311,5 +319,5 @@ def base_directory_model(path):
     model.update(
         type="directory",
         last_modified=DUMMY_CREATED_DATE,
-        created=DUMMY_CREATED_DATE,)
+        created=DUMMY_CREATED_DATE)
     return model
