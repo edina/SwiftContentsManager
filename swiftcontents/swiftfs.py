@@ -17,6 +17,7 @@ from traitlets import default, HasTraits, Unicode, Any, Instance
 from .callLogging import *
 #from pprint import pprint
 
+
 class SwiftFS(HasTraits):
 
     container = Unicode(os.environ.get('CONTAINER', 'demo'))
@@ -179,17 +180,23 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def rm(self, path, recursive=False):
+        self.log.info("SwiftFS.rm `%s`", path)
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
             self.do_error('Cannot delete root directory', code=400)
+            return False
+        if not (self.isdir(path) or self.isfile(path)):
             return False
 
         if recursive:
             for f in self._walk_path(path, dir_first=True):
                 self.log.debug("SwiftFS.rm recurse into `%s`", f)
                 self.rm(f)
+            self.log.info("SwiftFS.rm and now remove `%s`", path)
+            self.rm(path)
         else:
+            self.log.info("SwiftFS.rm not recursing for `%s`", path)
             files = self.listdir(path)
             isEmpty=True
             if len(files) > 1:
