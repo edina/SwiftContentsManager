@@ -5,68 +5,63 @@ Decorator for logging all method calls of a class
 import logging
 import sys
 
-__all__ = ['logMethods']
+__all__ = ['LogMethod','LogMethodResults']
 
-def logFunctionCall(log,oFunc,clsName=None):
-    def loggedFunction(*args,**kwargs):
-        if clsName is not None:
-            fName = '%s.%s'%(clsName,oFunc.__name__)
-        else:
-            fName = oFunc.__name__
-        
-        msg = 'calling %s('%fName
-        for a in args:
-            msg+=repr(a)+','
-        for k in kwargs:
-            msg+='%s=%s,'%(k,repr(kwargs[k]))
-        if msg[-1] == ',':
-            msg = msg[:-1]
-        msg +=')'
-        log.debug(msg)
-        return oFunc(*args,**kwargs)
-    return loggedFunction
+class LogMethod(object):
+    def __init__(self,log=None,logResult=False):
+        self.log = logging.getLogger('CallLog')
+        self.logResult = logResult
 
-def logMethods(Cls):
-    class NewCls(object):
-        def __init__(self,*args,**kwargs):
-            self.oInstance = Cls(*args,**kwargs)
-            if not hasattr( self.oInstance,'log'):
-                self.oInstance.log = logging.getLogger(__name__)
+    def __call__(self,oFunc):
+        def loggedFunction(*args,**kwargs):
+            fName = args[0].__class__.__name__ + '.' + oFunc.__name__
 
-        def __getattribute__(self,s):
-            """called whenever a method is access"""
-
-            try:
-                x = super(NewCls,self).__getattribute__(s)
-            except AttributeError:      
-                pass
+            if hasattr(args[0],'log'):
+                log = args[0].log
             else:
-                return x
-            x = self.oInstance.__getattribute__(s)
-            # check it is an instance method
-            if type(x) == type(self.__init__):
-                return logFunctionCall(self.log,x,clsName=self.oInstance.__class__.__name__)
-            else:
-                return x
-    return NewCls
+                log = self.log
             
+            msg = 'calling %s('%fName
+            for a in args[1:]:
+                msg+=repr(a)+','
+            for k in kwargs:
+                msg+='%s=%s,'%(k,repr(kwargs[k]))
+            if msg[-1] == ',':
+                msg = msg[:-1]
+            msg +=')'
+            log.debug(msg)
 
+            results = oFunc(*args,**kwargs)
+
+            if self.logResult:
+                log.debug('%s returned: %s',fName,repr(results))
+
+            return results
+        
+        return loggedFunction                            
+
+class LogMethodResults(LogMethod):
+    def __init__(self,log=None):
+        super(LogMethodResults,self).__init__(log=log,logResult=True)
+    
 if __name__ == '__main__':
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    @logMethods
     class TestClass(object):
 
+        @LogMethod()
         def a(self,b):
             print ('hello',b)
 
+        @LogMethodResults()
         def add(self,a,b):
             return a+b
 
-    @logMethods
     class TestClass2(object):
         def __init__(self,log):
             self.log = log
 
+        @LogMethod()
         def add(self,a,b):
             return a+b
        
