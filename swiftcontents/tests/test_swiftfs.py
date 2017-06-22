@@ -1,5 +1,5 @@
 import logging
-from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false
+from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false,assert_set_equal
 from swiftcontents.swiftfs import SwiftFS, HTTPError
 
 # list of dirs to make
@@ -17,6 +17,21 @@ testDirectories = ['temp/',
                    'temp/baz/temp/bar/foo/bar/']
 testFileName = 'hello.txt'
 testFileContent = 'Hello world'
+
+# construct a dictionary containing all directories and their entries
+testTree = {}
+for d in testDirectories:
+    pcomponents = d[:-1].split('/')
+    for i in range(len(pcomponents)):
+        parent = '/'.join(pcomponents[:i])+'/'
+        child = pcomponents[i]+'/'
+        if parent not in testTree:
+            testTree[parent] = set()
+        for pc in [parent+child,parent+testFileName]:
+            if pc.startswith('/'):
+                pc = pc[1:]
+            testTree[parent].add(pc)
+
 
 log = logging.getLogger('TestSwiftFS')
 
@@ -66,6 +81,10 @@ class Test_SwiftNoFS(object):
         log.info('test directory exists')
         assert_true (self.swiftfs.isdir(p))
         assert_false(self.swiftfs.isfile(p))
+        log.info('test various variations including slashes in directory name')
+        assert_true (self.swiftfs.isdir('a_test_dir'))
+        assert_true (self.swiftfs.isdir('/a_test_dir'))
+        assert_true (self.swiftfs.isdir('/a_test_dir/'))
         log.info('test directory can be deleted')
         self.swiftfs.rm(p)
         log.info('test directory is gone')
@@ -91,6 +110,7 @@ class Test_SwiftFS(object):
         for d in testDirectories:
             self.swiftfs.mkdir(d)
         log.info('create a bunch of files')
+        self.swiftfs._do_write(testFileName, testFileContent)
         for d in testDirectories:
             p = d+testFileName
             self.swiftfs._do_write(p, testFileContent)
@@ -99,6 +119,8 @@ class Test_SwiftFS(object):
         log.info('tidy up directory structure')
         self.swiftfs.rm(testDirectories[0],recursive=True)
         assert_false(self.swiftfs.isdir(testDirectories[0]))
+        self.swiftfs.rm(testFileName)
+        assert_false(self.swiftfs.isfile(testFileName))
 
     def test_setup(self):
         log.info('check all directories exist')
@@ -109,3 +131,92 @@ class Test_SwiftFS(object):
         for d in testDirectories:
             p = d+testFileName
             assert_true(self.swiftfs.isfile(p))
+
+    def test_listdir_normalmode(self):
+        log.info('check listdir in normal mode')
+        for d in testTree:
+            results = set()
+            for r in self.swiftfs.listdir(d):
+                results.add(r['name'])
+            assert_set_equal(results,testTree[d])
+
+    def test_listdir_allfiles(self):
+        log.info('check listdir returning all files')
+        results = set()
+        expected = set()
+        for r in self.swiftfs.listdir(testDirectories[0],this_dir_only=False):
+            results.add(r['name'])
+        expected.add(testFileName)
+        for d in testDirectories[1:]:
+            expected.add(d)
+            expected.add(d+testFileName)
+            
+    def test_listdir_allroot(self):
+        log.info('check listdir returning all files starting at root')
+        results = set()
+        expected = set()
+        for r in self.swiftfs.listdir('/',this_dir_only=False):
+            results.add(r['name'])
+        expected.add(testFileName)
+        for d in testDirectories:
+            expected.add(d)
+            expected.add(d+testFileName)
+        assert_set_equal(results,expected)
+
+    def test_listdir_dirnames(self):
+        log.info('check listdir can handle the various variations of directories with slashes')
+
+        for d in ['/temp','/temp/','temp','temp/']:
+            results = set()
+            for r in self.swiftfs.listdir(d):
+                results.add(r['name'])
+            assert_set_equal(results,testTree['temp/'])
+
+    def test_copy_file(self):
+        log.info('test copying a file')
+        fName = testDirectories[0]+testFileName
+        cName = fName+'_b'
+        assert_false (self.swiftfs.isfile(cName))
+        self.swiftfs.cp(fName,cName)
+        assert_true (self.swiftfs.isfile(cName))
+
+    def test_delete_file(self):
+        log.info('test deleting a file')
+        fName = testDirectories[0]+testFileName
+        assert_true (self.swiftfs.isfile(fName))
+        self.swiftfs.rm(fName)
+        assert_false (self.swiftfs.isfile(fName))
+        log.info('check deleted file is no longer in directory')
+        results = set()
+        for r in self.swiftfs.listdir(testDirectories[0]):
+            results.add(r['name'])
+        assert_equals(results,testTree[testDirectories[0]])
+
+    def test_move_file(self):
+        log.info('test moving a file')
+        fName = testDirectories[0]+testFileName
+        cName = fName+'_b'
+        assert_false (self.swiftfs.isfile(cName))
+        self.swiftfs.mv(fName,cName)
+        assert_true (self.swiftfs.isfile(cName))
+        assert_false (self.swiftfs.isfile(fName))
+
+    def test_copy_directory(self):
+        log.info('test copying a directory')
+        source = 'temp/bar'
+        destination = 'temp/copy_of_bar'
+
+        expected = set()
+        for d in testDirectories:
+            expected.add(d)
+            expected.add(d+testFileName)
+            if d.startswith(source):
+                nd = d.replace(source,destination,1)
+                expected.add(nd)
+                expected.add(nd+testFileName)
+
+        self.swiftfs.cp(source,destination)
+        results = set()
+        for r in self.swiftfs.listdir('/',this_dir_only=False):
+            results.add(r['name'])
+        assert_set_equal(results,expected)
