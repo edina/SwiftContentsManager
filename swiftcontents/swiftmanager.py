@@ -135,6 +135,7 @@ class SwiftContentsManager(ContentsManager):
 
     def list_checkpoints(self, path):
         self.log.debug("swiftmanager.list_checkpoints: not implimented (path was '%s')", path)
+        pass
 
     def delete(self, path):
         self.log.debug("swiftmanager.delete called (path was '%s')", path)
@@ -176,8 +177,6 @@ class SwiftContentsManager(ContentsManager):
             if not self.dir_exists(path):
                 self.no_such_entity(path)
             model["format"] = "json"
-            #dir_list = self.swiftfs.listdir(path=path)
-            self.log.debug("swiftmanager._directory_model_from_path has dir_content '%s'", metadata)
             model["content"] = self._convert_file_records(metadata)
         self.log.debug("swiftmanager._directory_model_from_path returning '%s'" % model)
         return model
