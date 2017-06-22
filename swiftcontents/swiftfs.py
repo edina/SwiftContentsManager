@@ -181,18 +181,23 @@ class SwiftFS(HasTraits):
         self._copymove(old_path, new_path, with_delete=True)
 
     def rm(self, path, recursive=False):
-        self.log.info("SwiftFS.rm `%s`", path)
+        self.log.info("SwiftFS.rm called - path: `%s`, recursive: %s  ", path, str(recursive))
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
             self.do_error('Cannot delete root directory', code=400)
+            return False
+        if not (self.isdir(path) or self.isfile(path)):
             return False
 
         if recursive:
             for f in self._walk_path(path, dir_first=True):
                 self.log.info("SwiftFS.rm recurse into `%s`", f)
                 self.rm(f)
+            self.log.info("SwiftFS.rm and now remove `%s`", path)
+            self.rm(path)
         else:
+            self.log.info("SwiftFS.rm not recursing for `%s`", path)
             files = self.listdir(path)
             if len(files) > 1:
                 self.do_error("directory %s not empty" % path, code=400)
@@ -263,7 +268,7 @@ class SwiftFS(HasTraits):
         path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
-        self._do_write(path, None)
+        self.write(path, None)
 
     # This works by downloading the file to disk then reading the contents of
     # that file into memory, before deleting the file
