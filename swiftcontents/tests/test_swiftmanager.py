@@ -39,7 +39,7 @@ class Test_SwiftContentsManager(object):
     def __init__(self):
         self.swiftmanager = SwiftContentsManager()
 
-
+    # Creates a bunch of directories & files
     def setUp(self):
         log.info('setting up directory structure')
         for d in testDirectories:
@@ -49,12 +49,11 @@ class Test_SwiftContentsManager(object):
             p = d+testFileName
             self.swiftmanager.swiftfs.write(p, testFileContent)
 
+    # removes the stuff setup, and tests it's gone!
     def teardown(self):
         log.info('tidy up directory structure')
         self.swiftmanager.swiftfs.rm(testDirectories[0],recursive=True)
         assert_false(self.swiftmanager.swiftfs.isdir(testDirectories[0]))
-
-        log.info("--------------------------------------")
 
     # Test the central error-handler
     def test_do_error(self):
@@ -64,7 +63,22 @@ class Test_SwiftContentsManager(object):
         # really? Oh, OK then...
         assert_raises(HTTPError, lambda: sm.do_error('error_text', 999))
 
-    # make the swiftfs test tree, then test it
+    # Test no_such_entity works
+    def test_no_such_entity(self):
+        sm = self.swiftmanager
+        log.info("test_ no_such_entity starting")
+        assert_raises(HTTPError, lambda: sm.no_such_entity(testDirectories[1]) )
+
+    # Test already_exists happens, and distinguishes between files & directories
+    def test_already_exists(self):
+        sm = self.swiftmanager
+        log.info("test_already_exists starting")
+        path = testDirectories[1] + testFileName
+        assert_raises(HTTPError, lambda: sm.already_exists(path) )
+        path =  path+ testFileName
+        assert_raises(HTTPError, lambda: sm.already_exists(path) )
+
+    # the last directory in the test suite should test true as a directory, and false as a file
     def test_dir_exists(self):
         sm = self.swiftmanager
         log.info("test_dir_exists starting")
@@ -73,7 +87,7 @@ class Test_SwiftContentsManager(object):
         assert_true(sm.dir_exists(exists_dir))
         assert_false(sm.dir_exists(exists_file))
 
-    # make the swiftfs test tree, then test it
+    # the last file in the test suite should test true as a file, and false as a directory
     def test_file_exists(self):
         sm = self.swiftmanager
         log.info("test_file_exists starting")
@@ -91,7 +105,7 @@ class Test_SwiftContentsManager(object):
         assert_false(sm.is_hidden(exists_file))
         assert_false(sm.is_hidden(exists_dir))
 
-    # tests make_dir (both success & fail)
+    # tests make_dir. success if make, fail if it already exists
     def test_make_dir(self):
         sm = self.swiftmanager
         log.info("test_make_dir starting")
@@ -108,6 +122,7 @@ class Test_SwiftContentsManager(object):
         path = testDirectories[0]
         assert_raises(HTTPError, lambda: sm.get(path, type='random_text', content=None) )
 
+    # tests getting a directory: with & without content; with & without the type value defined
     def test_get_directory(self):
         sm = self.swiftmanager
         log.info("test_get_directory starting")
@@ -125,6 +140,7 @@ class Test_SwiftContentsManager(object):
         data = sm.get(path, content=True)
         assert_true( len(data['content']) > 0)
 
+    # tests getting a file: with & without content; with & without the type value defined
     def test_get_file(self):
         sm = self.swiftmanager
         log.info("test_get_file starting")
@@ -142,6 +158,7 @@ class Test_SwiftContentsManager(object):
         data = sm.get(path, content=True)
         assert_true( data['content'] == testFileContent)
 
+    # tests getting a notebook: with & without content; with & without the type value defined
     def test_get_notebook(self):
         sm = self.swiftmanager
         log.info("test_get_notebook starting")
@@ -160,6 +177,7 @@ class Test_SwiftContentsManager(object):
         data = sm.get(path, content=True)
         assert_true( data['content'] == testNotebookContent)
 
+    # tests that save raises errors for no type given & invalid type given
     def test_save_errors(self):
         sm = self.swiftmanager
         log.info("test_save_errors starting")
@@ -171,49 +189,88 @@ class Test_SwiftContentsManager(object):
         model={'content': testFileContent, 'type': 'random_text'}
         assert_raises(HTTPError, lambda: sm.save(model, path) )
 
+    # tests saving a directory (with & without a trailing slash)
     def test_save_directory(self):
         sm = self.swiftmanager
-        log.info("test_save_file starting")
+        log.info("test_save_directory starting")
         path = testDirectories[1].rstrip('/')+'_2/'
         model={'type': 'directory'}
         returned_model = sm.save(model, path)
         assert_true( returned_model['path'] == path )
-        # Interestingly, this adds the trailing slash to the object,
-        # but that change doesn't appear in the model!
+        assert_true( sm.dir_exists(path) )
+        # this adds the trailing slash to the object,
         path = testDirectories[1].rstrip('/')+'_3'
         returned_model = sm.save(model, path)
-        assert_true( returned_model['path'] == path + '/' )
+        assert_true( returned_model['path'] == path + '/')
+        assert_true( sm.dir_exists(path) )
 
+    # tests saving a file
     def test_save_file(self):
         sm = self.swiftmanager
         log.info("test_save_file starting")
         path = testDirectories[1]+testFileName+'_2'
         model={'content': testFileContent, 'type': 'file'}
         returned_model = sm.save(model, path)
-        raise Exception
+        assert_true( sm.file_exists(path) )
 
+    # tests saving a notebook
     def test_save_notebook(self):
         sm = self.swiftmanager
         log.info("test_save_notebook starting")
-        path = testDirectories[1].rstrip('/') + '_b/'
-        model = cm.new_untitled(type='notebook')
-        #name = model['name']
-        #path = model['path']
+        path = testDirectories[1] + testNotebookName
+        model={'content': testNotebookContent, 'type': 'notebook'}
+        returned_model = sm.save(model, path)
+        assert_true( sm.file_exists(path) )
 
         # Get the model with 'content'
-        full_model = cm.get(path)
-        pprint(full_model)
-        raise Exception
+        data = sm.get(path)
+        assert_true( data['content'] == testNotebookContent )
 
-    def test_swiftmanager_rename(self):
+    def test_rename_file(self):
         sm = self.swiftmanager
-        log.info("test_swiftmanager_rename starting")
-        pass
-    def test_swiftmanager_delete(self):
+        log.info("test_rename_file starting")
+        from_path = testDirectories[1]+testFileName
+        to_path = testDirectories[1]+testFileName+'_2'
+
+        # rename non-existant file should fail
+        assert_raises(HTTPError, lambda: sm.rename_file(to_path, to_path) )
+        # rename to an existing file should fail
+        assert_raises(HTTPError, lambda: sm.rename_file(from_path, from_path) )
+        assert_true( sm.file_exists(from_path) )
+        assert_false( sm.file_exists(to_path) )
+        sm.rename_file(from_path, to_path)
+        assert_false( sm.file_exists(from_path) )
+        assert_true( sm.file_exists(to_path) )
+
+    def test_rename(self):
         sm = self.swiftmanager
-        log.info("test_swiftmanager_delete starting")
-        pass
-    def test_swiftmanager_error_handling(self):
+        log.info("test_rename starting")
+        from_path = testDirectories[1]+testFileName
+        to_path = testDirectories[1]+testFileName+'_2'
+
+        # rename non-existant file should fail
+        assert_raises(HTTPError, lambda: sm.rename_file(to_path, to_path) )
+        # rename to an existing file should fail
+        assert_raises(HTTPError, lambda: sm.rename_file(from_path, from_path) )
+        assert_true( sm.file_exists(from_path) )
+        assert_false( sm.file_exists(to_path) )
+        sm.rename_file(from_path, to_path)
+        assert_false( sm.file_exists(from_path) )
+        assert_true( sm.file_exists(to_path) )
+
+    def test_delete_file(self):
         sm = self.swiftmanager
-        log.info("test_swiftmanager_error_handling starting")
-        pass
+        log.info("test_delete_file starting")
+        path = testDirectories[1]+testFileName
+        assert_true( sm.file_exists(path) )
+        sm.delete_file(path)
+        assert_false( sm.file_exists(path) )
+
+    def test_delete(self):
+        sm = self.swiftmanager
+        log.info("test_delete starting")
+        path = testDirectories[1]+testFileName
+        assert_true( sm.file_exists(path) )
+        sm.delete_file(path)
+        assert_false( sm.file_exists(path) )
+
