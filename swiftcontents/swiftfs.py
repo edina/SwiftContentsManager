@@ -6,6 +6,7 @@ import swiftclient
 import io
 import re
 import logging
+import tempfile
 from swiftclient.service import SwiftService, SwiftError, SwiftUploadObject
 from swiftclient.multithreading import OutputManager
 from swiftclient.exceptions import ClientException
@@ -280,16 +281,21 @@ class SwiftFS(HasTraits):
     def read(self, path):
         path = self.clean_path(path)
         content = ''
+        fhandle,localFile = tempfile.mkstemp(prefix="swiftfs_")
+        os.close(fhandle)
         try:
             response = self.swift.download(container=self.container,
-                                      objects=[path])
-            for r in response:
-                if r['success']:
-                    filename = open(r['path'])
-                    content = filename.read()
-                    os.remove(r['path'])
+                                           objects=[path],options={"out_file":localFile})
         except SwiftError as e:
             self.log.error("SwiftFS.read %s", e.value)
+            return ''
+
+        for r in response:
+            if r['success']:        
+                self.log.debug("SwiftFS.read: using local file %s",localFile)
+                with open(localFile) as lf:
+                    content = lf.read()
+                os.remove(localFile)
         return content
 
     # Write is 'upload' and 'upload' needs a "file" it can read from
