@@ -326,30 +326,29 @@ class SwiftFS(HasTraits):
     @LogMethod()
     def _do_write(self, path, content):
         path = self.clean_path(path)
-        _opts = {'object_uu_threads': 20}
-        with SwiftService(options=_opts) as swift, OutputManager() as out_manager:
-            try:
-                type = self.guess_type(path)
-                things = []
-                if type == "directory":
-                    self.log.debug("SwiftFS._do_write create directory")
-                    things.append(SwiftUploadObject(None, object_name=path))
-                else:
-                    self.log.debug("SwiftFS._do_write create file/notebook from '%s'", content)
-                    output = io.BytesIO(content.encode('utf-8'))
-                    things.append(SwiftUploadObject(output, object_name=path))
 
-                # Now do the upload
-                response = swift.upload(self.container, things)
-                for r in response:
-                    self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
-                                   r['action'], r['success'])
-            except SwiftError as e:
-                self.log.error("SwiftFS._do_write swift-error: %s", e.value)
-                raise
-            except ClientException as e:
-                self.log.error("SwiftFS._do_write client-error: %s", e.value)
-                raise
+        type = self.guess_type(path)
+        things = []
+        if type == "directory":
+            self.log.debug("SwiftFS._do_write create directory")
+            things.append(SwiftUploadObject(None, object_name=path))
+        else:
+            self.log.debug("SwiftFS._do_write create file/notebook from '%s'", content)
+            output = io.BytesIO(content.encode('utf-8'))
+            things.append(SwiftUploadObject(output, object_name=path))
+
+        try:
+            # Now do the upload
+            response = self.swift.upload(self.container, things)
+            for r in response:
+                self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
+                               r['action'], r['success'])
+        except SwiftError as e:
+            self.log.error("SwiftFS._do_write swift-error: %s", e.value)
+            raise
+        except ClientException as e:
+            self.log.error("SwiftFS._do_write client-error: %s", e.value)
+            raise
 
     @LogMethodResults()
     def guess_type(self, path, allow_directory=True):
