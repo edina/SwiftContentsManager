@@ -160,27 +160,36 @@ class Test_SwiftContentsManager(object):
         data = sm.get(path, content=True)
         assert_true( data['content'] == testNotebookContent)
 
+    def test_save_errors(self):
+        sm = self.swiftmanager
+        log.info("test_save_errors starting")
+        path = testDirectories[1]+testFileName+'_2'
+        # fail: no type given
+        model={'content': testFileContent}
+        assert_raises(HTTPError, lambda: sm.save(model, path) )
+        # fail: invalid type given
+        model={'content': testFileContent, 'type': 'random_text'}
+        assert_raises(HTTPError, lambda: sm.save(model, path) )
+
+    def test_save_directory(self):
+        sm = self.swiftmanager
+        log.info("test_save_file starting")
+        path = testDirectories[1].rstrip('/')+'_2/'
+        model={'type': 'directory'}
+        returned_model = sm.save(model, path)
+        assert_true( returned_model['path'] == path )
+        # Interestingly, this adds the trailing slash to the object,
+        # but that change doesn't appear in the model!
+        path = testDirectories[1].rstrip('/')+'_3'
+        returned_model = sm.save(model, path)
+        assert_true( returned_model['path'] == path + '/' )
+
     def test_save_file(self):
         sm = self.swiftmanager
         log.info("test_save_file starting")
-        path = testDirectories[1]
-        file_model_path = sm.new_untitled(path=path, ext='.txt')['path']
-        file_model = cm.get(file_model_path)
-        pprint(file_model)
-        #self.assertDictContainsSubset(
-        #    {
-        #        'content': u'',
-        #        'format': u'text',
-        #        'mimetype': u'text/plain',
-        #        'name': u'untitled.txt',
-        #        'path': u'foo/untitled.txt',
-        #        'type': u'file',
-        #        'writable': True,
-        #    },
-        #    file_model,
-        #)
-        #self.assertIn('created', file_model)
-        #self.assertIn('last_modified', file_model)
+        path = testDirectories[1]+testFileName+'_2'
+        model={'content': testFileContent, 'type': 'file'}
+        returned_model = sm.save(model, path)
         raise Exception
 
     def test_save_notebook(self):

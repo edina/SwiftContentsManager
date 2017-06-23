@@ -85,11 +85,11 @@ class SwiftContentsManager(ContentsManager):
 
         # Read back content to verify save
         self.log.debug("swiftmanager.save getting file to validate: `%s`, `%s`", path, model["type"] )
-        model = self.get(path, type=model["type"], content=False)
+        returned_model = self.get(path, type=model["type"], content=False)
         if validation_message is not None:
-            model["message"] = validation_message
+            returned_model["message"] = validation_message
         self.log.debug("swiftmanager.save returning")
-        return model
+        return returned_model
 
     def delete_file(self, path):
         """Delete the file or directory at path.
@@ -303,7 +303,7 @@ def base_model(path):
         name = p.pop()+'/'
     return {
         "name": name,
-        "path": path.lstrip( '/' ),
+        "path": path, 
         "writable": True,
         "last_modified": None,
         "created": None,
@@ -314,9 +314,13 @@ def base_model(path):
 
 
 def base_directory_model(path):
+    delimiter = '/'
     model = base_model(path)
     model.update(
         type="directory",
         last_modified=DUMMY_CREATED_DATE,
-        created=DUMMY_CREATED_DATE)
+        created=DUMMY_CREATED_DATE,
+        path = model['path'].rstrip(delimiter) + delimiter,
+        name = model['name'].rstrip(delimiter) + delimiter
+    )
     return model
