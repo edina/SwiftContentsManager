@@ -100,6 +100,14 @@ class Test_SwiftNoFS(object):
         self.swiftfs.rm(p)
         log.info('test file is gone')
         assert_false (self.swiftfs.isfile(p))
+
+    def test_read_write(self):
+        log.info('test reading from and writing to a file')
+        testString = "hello, world - magi was here"
+        p = testDirectories[0] + testFileName
+        self.swiftfs.write(p,testString)
+        result = self.swiftfs.read(p)
+        assert_equals(testString,result)
         
 class Test_SwiftFS(object):
     def __init__(self):
