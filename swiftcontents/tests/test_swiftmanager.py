@@ -34,7 +34,7 @@ testNotebookContent = {"metadata": {},
                        "cells": [],
                        "nbformat": 4}
 
-class Test_SwiftContentsManager(object):
+class Test_SwiftManager(object):
 
     def __init__(self):
         self.swiftmanager = SwiftContentsManager()
