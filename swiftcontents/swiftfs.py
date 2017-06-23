@@ -279,6 +279,10 @@ class SwiftFS(HasTraits):
     # local filestore will disappear when the docker ends, I'm not too bothered.
     @LogMethod()
     def read(self, path):
+        if self.guess_type(path) == "directory":
+            msg = "cannot read from path %s: it is a directory"%path
+            self.do_error(msg, code=400)
+        
         path = self.clean_path(path)
         content = ''
         fhandle,localFile = tempfile.mkstemp(prefix="swiftfs_")
@@ -302,6 +306,10 @@ class SwiftFS(HasTraits):
     # We use io.StringIO for this
     @LogMethod()
     def write(self, path, content):
+        if self.guess_type(path) == "directory":
+            msg = "cannot write to path %s: it is a directory"%path
+            self.do_error(msg, code=400)
+            
         path = self.clean_path(path)
         # If we can't make the directory path, then we can't make the file!
         success = self._make_intermedate_dirs(path)
@@ -384,6 +392,7 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def do_error(self, msg, code=500):
+        self.log.error(msg)
         raise HTTPError(code, msg)
 
 

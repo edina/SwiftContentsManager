@@ -108,6 +108,20 @@ class Test_SwiftNoFS(object):
         self.swiftfs.write(p,testString)
         result = self.swiftfs.read(p)
         assert_equals(testString,result)
+
+    def test_write_directory(self):
+        log.info('test writing to a directory')
+        p = 'a_test_dir/'
+        self.swiftfs.mkdir(p)
+        assert_raises(HTTPError,self.swiftfs.write,p,testFileContent)
+        self.swiftfs.rm(p)
+        
+    def test_read_directory(self):
+        log.info('test reading from a directory')
+        p = 'a_test_dir/'
+        self.swiftfs.mkdir(p)
+        assert_raises(HTTPError,self.swiftfs.read,p)
+        self.swiftfs.rm(p)
         
 class Test_SwiftFS(object):
     def __init__(self):
