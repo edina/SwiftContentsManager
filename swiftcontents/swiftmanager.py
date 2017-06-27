@@ -7,6 +7,7 @@ from dateutil.parser import parse
 from pprint import pprint
 from tornado.web import HTTPError
 from traitlets import default, Unicode, List
+from base64 import b64decode
 
 from swiftcontents.swiftfs import SwiftFS, SwiftFSError, NoSuchFile
 from swiftcontents.ipycompat import ContentsManager
@@ -224,7 +225,6 @@ class SwiftContentsManager(ContentsManager):
             model["mimetype"] = mimetypes.guess_type(path)[0] or "text/plain"
             if format == "base64":
                 model["format"] = format or "base64"
-                from base64 import b64decode
                 model["content"] = b64decode(content)
         return model
 
