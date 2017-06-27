@@ -180,7 +180,6 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def rm(self, path, recursive=False):
-        self.log.info("SwiftFS.rm `%s`", path)
         path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
