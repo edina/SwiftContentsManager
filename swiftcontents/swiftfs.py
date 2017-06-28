@@ -179,6 +179,13 @@ class SwiftFS(HasTraits):
         self._copymove(old_path, new_path, with_delete=True)
 
     @LogMethod()
+    def remove_container(self):
+        response = self.swift.delete(container=self.container)
+        for r in response:
+            self.log.debug("SwiftFS.rm action: `%s` success: `%s`", r['action'], r['success'])
+
+
+    @LogMethod()
     def rm(self, path, recursive=False):
         path = self.clean_path(path)
 

@@ -143,6 +143,7 @@ class Test_SwiftFS(object):
         assert_false(self.swiftfs.isdir(testDirectories[0]))
         self.swiftfs.rm(testFileName)
         assert_false(self.swiftfs.isfile(testFileName))
+        self.swiftfs.remove_container()
 
     def test_setup(self):
         log.info('check all directories exist')
