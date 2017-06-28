@@ -50,6 +50,14 @@ class SwiftContentsManager(ContentsManager):
             msg = "Unknown type passed: '{}'".format(type)
             self.do_error(msg)
 
+        if type == 'directory':
+            exists = self.dir_exists(path)
+        else:
+            exists = self.file_exists(path)
+            
+        if not exists:
+            self.no_such_entity(path)
+            
         # construct accessor name from type
         # eg file => _get_file
         func = getattr(self,'_get_'+type)
