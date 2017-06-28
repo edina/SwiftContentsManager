@@ -29,7 +29,8 @@ class Test_SwiftContentsManager(TestContentsManager):
         self.contents_manager = SwiftContentsManager()
 
     def tearDown(self):
-        pass
+        #pass
+        self.contents_manager.swiftfs.remove_container()
 
     def make_dir(self, api_path):
         self.contents_manager.make_dir(api_path)
