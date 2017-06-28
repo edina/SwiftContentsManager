@@ -196,7 +196,7 @@ class Test_SwiftManager(object):
         path = testDirectories[1].rstrip('/')+'_2/'
         model={'type': 'directory'}
         returned_model = sm.save(model, path)
-        assert_true( returned_model['path'] == path )
+        assert_true( returned_model['path'] == path.rstrip('/') )
         assert_true( sm.dir_exists(path) )
         # note the trailing slash exists for the object, but not in the path
         path = testDirectories[1].rstrip('/')+'_3'

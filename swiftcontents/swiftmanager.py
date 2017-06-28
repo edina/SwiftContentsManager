@@ -194,6 +194,8 @@ class SwiftContentsManager(ContentsManager):
         # path = to_api_path(record['parent_name'] + record['name'])
         model = base_model(path)
         model['type'] = 'notebook'
+        if isinstance(metadata,list):
+            metadata = metadata[0]
         if 'last_modified' in metadata :
             model['last_modified'] = model['created'] = parse(metadata['last_modified'])
         else:
@@ -217,6 +219,8 @@ class SwiftContentsManager(ContentsManager):
         model = base_model(path)
         model['type'] = 'file'
 
+        if isinstance(metadata,list):
+            metadata = metadata[0]
         if 'last_modified' in metadata :
             model['last_modified'] = model['created'] = parse(metadata['last_modified'])
         else:
@@ -331,7 +335,7 @@ def base_directory_model(path):
         type="directory",
         last_modified=DUMMY_CREATED_DATE,
         created=DUMMY_CREATED_DATE,
-        path = model['path'],
-        name = model['name']
+        path = model['path'].strip('/'),
+        name = model['name'].strip('/')
     )
     return model
