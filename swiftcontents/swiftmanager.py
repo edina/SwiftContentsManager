@@ -293,9 +293,6 @@ def base_model(path):
     name = p.pop()
     if len(name)==0 and len(p)>0:
         name = p.pop()+'/'
-
-    print("\n\n\n\nmagi_debug path %s\n\n\n\n\n"%path)
-
     return {
         "name": name,
         "path": path.lstrip('/'), 
