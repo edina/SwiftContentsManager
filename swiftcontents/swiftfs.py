@@ -33,7 +33,6 @@ class SwiftFS(HasTraits):
 
     log = logging.getLogger('SwiftFS')
 
-    
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
@@ -80,10 +79,11 @@ class SwiftFS(HasTraits):
              'name': 'foo/bar/thingamy.bob'}
         """
         files = []
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
 
         # Get all objects that match the known path
         try:
+            path = self.clean_path(path)
             _opts = {'prefix': path}
             dir_listing = self.swift.list(container=self.container,
                                      options=_opts)
@@ -117,7 +117,7 @@ class SwiftFS(HasTraits):
     # We can 'stat' files, but not directories
     @LogMethodResults()
     def isfile(self, path):
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
 
         if path is None or path == '':
             self.log.debug("SwiftFS.isfile has no path, returning False")
@@ -126,6 +126,7 @@ class SwiftFS(HasTraits):
         _isfile = False
         if not path.endswith(self.delimiter):
             try:
+                path = self.clean_path(path)
                 response = self.swift.stat(container=self.container, objects=[path])
                 for r in response:
                     if r['success']:
@@ -140,7 +141,7 @@ class SwiftFS(HasTraits):
     # We can 'list' direcotries, but not 'stat' them
     @LogMethodResults()
     def isdir(self, path):
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
 
         # directories mush have a trailing slash on them.
         # The core code seems to remove any trailing slash, so lets add it back
@@ -155,6 +156,7 @@ class SwiftFS(HasTraits):
 
         _isdir = False
         try:
+            path = self.clean_path(path)
             _opts = {}
             if re.search('\w', path):
                 _opts = {'prefix': path}
@@ -187,7 +189,6 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def rm(self, path, recursive=False):
-        path = self.clean_path(path)
 
         if path in ["", self.delimiter]:
             self.do_error('Cannot delete root directory', code=400)
@@ -213,6 +214,7 @@ class SwiftFS(HasTraits):
                 self.do_error("directory %s not empty" % path, code=400)
 
             try:
+                path = self.clean_path(path)
                 response = self.swift.delete(container=self.container,
                                         objects=[path])
                 for r in response:
@@ -242,8 +244,8 @@ class SwiftFS(HasTraits):
     # does clever recursive stuff for directory trees
     @LogMethod()
     def _copymove(self, old_path, new_path, with_delete=False):
-        old_path = self.clean_path(old_path)
-        new_path = self.clean_path(new_path)
+        #old_path = self.clean_path(old_path)
+        #new_path = self.clean_path(new_path)
 
         for f in self._walk_path(old_path):
             new_f = f.replace(old_path, new_path, 1)
@@ -251,6 +253,8 @@ class SwiftFS(HasTraits):
                 self.mkdir(new_f)
             else:
                 try:
+                    old_path = self.clean_path(old_path)
+                    new_path = self.clean_path(new_path)
                     response = self.swift.copy(self.container, [f],
                                           {'destination': self.delimiter +
                                            self.container +
@@ -280,7 +284,7 @@ class SwiftFS(HasTraits):
     # Directories are just objects that have a trailing '/'
     @LogMethod()
     def mkdir(self, path):
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
         self._do_write(path, None)
@@ -296,11 +300,12 @@ class SwiftFS(HasTraits):
             msg = "cannot read from path %s: it is a directory"%path
             self.do_error(msg, code=400)
         
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
         content = ''
         fhandle,localFile = tempfile.mkstemp(prefix="swiftfs_")
         os.close(fhandle)
         try:
+            path = self.clean_path(path)
             response = self.swift.download(container=self.container,
                                            objects=[path],options={"out_file":localFile})
         except SwiftError as e:
@@ -323,7 +328,7 @@ class SwiftFS(HasTraits):
             msg = "cannot write to path %s: it is a directory"%path
             self.do_error(msg, code=400)
             
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
         # If we can't make the directory path, then we can't make the file!
         success = self._make_intermedate_dirs(path)
         if success:
@@ -352,7 +357,7 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def _do_write(self, path, content):
-        path = self.clean_path(path)
+        #path = self.clean_path(path)
 
         type = self.guess_type(path)
         things = []
@@ -366,6 +371,7 @@ class SwiftFS(HasTraits):
 
         try:
             # Now do the upload
+            path = self.clean_path(path)
             response = self.swift.upload(self.container, things)
             for r in response:
                 self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
@@ -392,6 +398,8 @@ class SwiftFS(HasTraits):
         if path.endswith(".ipynb"):
             _type = "notebook"
         elif allow_directory and path.endswith(self.delimiter):
+            _type = "directory"
+        elif allow_directory and self.isdir(path):
             _type = "directory"
         else:
             _type = "file"
