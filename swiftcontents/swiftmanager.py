@@ -323,7 +323,7 @@ def base_directory_model(path):
         type="directory",
         last_modified=DUMMY_CREATED_DATE,
         created=DUMMY_CREATED_DATE,
-        path = model['path'].strip(delimiter),
-        name = model['name'].strip(delimiter) 
+        path = model['path'],
+        name = model['name']
     )
     return model
