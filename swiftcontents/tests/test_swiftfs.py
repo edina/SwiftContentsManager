@@ -139,10 +139,6 @@ class Test_SwiftFS(object):
 
     def teardown(self):
         log.info('tidy up directory structure')
-        self.swiftfs.rm(testDirectories[0],recursive=True)
-        assert_false(self.swiftfs.isdir(testDirectories[0]))
-        self.swiftfs.rm(testFileName)
-        assert_false(self.swiftfs.isfile(testFileName))
         self.swiftfs.remove_container()
 
     def test_setup(self):
