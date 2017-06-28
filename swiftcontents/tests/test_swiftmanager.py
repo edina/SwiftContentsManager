@@ -198,11 +198,11 @@ class Test_SwiftManager(object):
         returned_model = sm.save(model, path)
         assert_true( returned_model['path'] == path )
         assert_true( sm.dir_exists(path) )
-        # this adds the trailing slash to the object,
+        # note the trailing slash exists for the object, but not in the path
         path = testDirectories[1].rstrip('/')+'_3'
         returned_model = sm.save(model, path)
-        assert_true( returned_model['path'] == path + '/')
-        assert_true( sm.dir_exists(path) )
+        assert_true( returned_model['path'] == path)
+        assert_true( sm.dir_exists(path + '/') )
 
     # tests saving a file
     def test_save_file(self):

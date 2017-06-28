@@ -41,7 +41,7 @@ class Test_SwiftNoFS(object):
 
     def guess_type(self,gtype):
         log.info('testing guess_type %s',gtype)
-        
+
     def test_guess_type_notebook(self):
         log.info('testing guess_type notebook')
         assert_equals (self.swiftfs.guess_type('foo.ipynb'), 'notebook')
@@ -55,7 +55,7 @@ class Test_SwiftNoFS(object):
         assert_equals (self.swiftfs.guess_type('foo/'), 'directory')
         assert_not_equals (self.swiftfs.guess_type('foo'), 'directory')
         assert_not_equals (self.swiftfs.guess_type('foo/', allow_directory=False), 'directory')
-        
+
     def test_guess_type_file(self):
         log.info('testing guess_type directory')
         assert_not_equals (self.swiftfs.guess_type('foo.ipynb'), 'file')
@@ -73,7 +73,7 @@ class Test_SwiftNoFS(object):
     def test_do_error(self):
         log.info('test do_error')
         assert_raises(HTTPError,self.swiftfs.do_error,"test error")
-        
+
     def test_directory(self):
         log.info('test creating a directory')
         p = 'a_test_dir/'
@@ -115,14 +115,14 @@ class Test_SwiftNoFS(object):
         self.swiftfs.mkdir(p)
         assert_raises(HTTPError,self.swiftfs.write,p,testFileContent)
         self.swiftfs.rm(p)
-        
+
     def test_read_directory(self):
         log.info('test reading from a directory')
         p = 'a_test_dir/'
         self.swiftfs.mkdir(p)
         assert_raises(HTTPError,self.swiftfs.read,p)
         self.swiftfs.rm(p)
-        
+
 class Test_SwiftFS(object):
     def __init__(self):
         self.swiftfs = SwiftFS()
@@ -173,7 +173,7 @@ class Test_SwiftFS(object):
         for d in testDirectories[1:]:
             expected.add(d)
             expected.add(d+testFileName)
-            
+
     def test_listdir_allroot(self):
         log.info('check listdir returning all files starting at root')
         results = set()

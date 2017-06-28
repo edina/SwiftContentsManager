@@ -18,6 +18,7 @@ DUMMY_CREATED_DATE = datetime.now( )
 NBFORMAT_VERSION = 4
 
 class SwiftContentsManager(ContentsManager):
+
     # Initialise the instance
     def __init__(self, *args, **kwargs):
         super(SwiftContentsManager, self).__init__(*args, **kwargs)
@@ -44,11 +45,7 @@ class SwiftContentsManager(ContentsManager):
         """
 
         if type is None:
-            # need to check if path is a directory
-            if self.swiftfs.isdir(path):
-                type="directory"
-            else:
-                type = self.swiftfs.guess_type(path)
+            type = self.swiftfs.guess_type(path)
         if type not in ["directory","notebook","file"]:
             msg = "Unknown type passed: '{}'".format(type)
             self.do_error(msg)
@@ -282,10 +279,23 @@ class SwiftContentsManager(ContentsManager):
     @LogMethodResults()
     def _get_os_path(self, path):
         """A method for converting an object path into File System Path.
-        As we only need local file-system copies for 'get' calls to download into, all files are
-        dumped into /tmp
+        It seems that os_path's are required to map to file-store paths, so
+        they need to exist if looked for.
         """
-        return '/tmp/' + path
+        current_dir = ''
+        # Walk the tree, making a directory at each level.
+        for p in path.split('/'):
+            if len(current_dir) > 1 :
+                current_dir = current_dir + '/' + p
+            else:
+                current_dir = p
+            # poke to make this level...
+            try:
+                self.make_dir(current_dir)
+            except  HTTPError as e:
+                # dir exists
+                continue
+        return current_dir
 
 @LogMethod()
 def base_model(path):
@@ -313,7 +323,7 @@ def base_directory_model(path):
         type="directory",
         last_modified=DUMMY_CREATED_DATE,
         created=DUMMY_CREATED_DATE,
-        path = model['path'].strip(delimiter),
-        name = model['name'].strip(delimiter) 
+        path = model['path'],
+        name = model['name']
     )
     return model

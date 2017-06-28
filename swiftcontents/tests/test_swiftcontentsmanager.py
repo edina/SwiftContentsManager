@@ -21,14 +21,11 @@ from tornado.web import HTTPError
 # When we rename a directory, we need to rename every object that contains that
 #   path-part
 class Test_SwiftContentsManager(TestContentsManager):
-    
+
     maxDiff = None
-    
+    _temp_dir = TemporaryDirectory()
+
     def setUp(self):
-        """
-        Note: this test requires a bunch of environment variables set, and
-        is written to work in a Docker image, against the UofE 'Horizon' server
-        """
         self.contents_manager = SwiftContentsManager()
 
     def tearDown(self):
