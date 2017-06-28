@@ -166,7 +166,7 @@ class SwiftFS(HasTraits):
                 if r['success']:
                     _isdir = True
                 else:
-                    self.log.error('Failed to retrieve stats for %s' % r['object'])
+                    self.log.error('Failed to retrieve stats for %s' % path)
                 break
         except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
@@ -412,6 +412,8 @@ class SwiftFS(HasTraits):
         if self.guess_type(path) == 'directory':
             # ensure we have a / at the end of directory paths
             path = path.rstrip(self.delimiter)+self.delimiter
+            if path == self.delimiter:
+                path = ''
         return path
 
     @LogMethod()
