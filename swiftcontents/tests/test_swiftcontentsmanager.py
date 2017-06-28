@@ -29,5 +29,11 @@ class Test_SwiftContentsManager(TestContentsManager):
         """
         self.contents_manager = SwiftContentsManager()
 
+    def tearDown(self):
+        pass
+
+    def make_dir(self, api_path):
+        self.contents_manager.make_dir(api_path)
+
 # This needs to be removed or else we'll run the main IPython tests as well.
 del TestContentsManager
