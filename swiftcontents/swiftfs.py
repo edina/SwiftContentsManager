@@ -409,6 +409,9 @@ class SwiftFS(HasTraits):
     def clean_path(self, path):
         # strip of any leading '/'
         path = path.lstrip(self.delimiter)
+        if self.guess_type(path) == 'directory':
+            # ensure we have a / at the end of directory paths
+            path = path.rstrip(self.delimiter)+self.delimiter
         return path
 
     @LogMethod()
