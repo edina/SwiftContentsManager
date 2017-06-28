@@ -21,7 +21,9 @@ from tornado.web import HTTPError
 # When we rename a directory, we need to rename every object that contains that
 #   path-part
 class Test_SwiftContentsManager(TestContentsManager):
-
+    
+    maxDiff = None
+    
     def setUp(self):
         """
         Note: this test requires a bunch of environment variables set, and
