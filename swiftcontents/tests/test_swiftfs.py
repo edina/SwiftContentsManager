@@ -89,7 +89,10 @@ class Test_SwiftNoFS(object):
         self.swiftfs.rm(p)
         log.info('test directory is gone')
         assert_false (self.swiftfs.isdir(p))
-
+        log.info('test creating a directory in a non existant path')
+        p = 'temp_does_not_exist/a_test_dir'
+        assert_raises(HTTPError,self.swiftfs.mkdir,p)
+        
     def test_file(self):
         log.info('test create a file')
         p = 'a_test_file.txt'
@@ -104,10 +107,17 @@ class Test_SwiftNoFS(object):
     def test_read_write(self):
         log.info('test reading from and writing to a file')
         testString = "hello, world - magi was here"
-        p = testDirectories[0] + testFileName
+        p = testFileName
         self.swiftfs.write(p,testString)
         result = self.swiftfs.read(p)
         assert_equals(testString,result)
+
+    def test_write_wrong_path(self):
+        log.info('test writing to a non existant path')
+        testString = "hello, world - magi was here"
+        for t in ['temp_does_not_exist/','temp/temp_does_not_exist/']:
+            p = t+testFileName
+            assert_raises(HTTPError,self.swiftfs.write,p,testString)
 
     def test_write_directory(self):
         log.info('test writing to a directory')
@@ -198,6 +208,13 @@ class Test_SwiftFS(object):
         assert_false (self.swiftfs.isfile(cName))
         self.swiftfs.cp(fName,cName)
         assert_true (self.swiftfs.isfile(cName))
+
+    def test_copy_file_parent(self):
+        log.info('test copying a file to a non-existant directory')
+        fName = testDirectories[0]+testFileName
+        for t in ['temp_does_not_exist/','temp/temp_does_not_exist/']:
+            assert_raises(HTTPError,self.swiftfs.cp,fName,t+testFileName)
+            assert_raises(HTTPError,self.swiftfs.mv,fName,t+testFileName)
 
     def test_delete_file(self):
         log.info('test deleting a file')

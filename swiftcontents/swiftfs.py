@@ -247,6 +247,9 @@ class SwiftFS(HasTraits):
         #old_path = self.clean_path(old_path)
         #new_path = self.clean_path(new_path)
 
+        # check parent directory exists
+        self.checkParentDirExists(new_path)
+        
         for f in self._walk_path(old_path):
             new_f = f.replace(old_path, new_path, 1)
             if self.guess_type(f) == 'directory':
@@ -330,9 +333,8 @@ class SwiftFS(HasTraits):
             
         #path = self.clean_path(path)
         # If we can't make the directory path, then we can't make the file!
-        success = self._make_intermedate_dirs(path)
-        if success:
-            self._do_write(path, content)
+        #success = self._make_intermedate_dirs(path)
+        self._do_write(path, content)
 
     @LogMethod()
     def _make_intermedate_dirs(self, path):
@@ -359,6 +361,9 @@ class SwiftFS(HasTraits):
     def _do_write(self, path, content):
         #path = self.clean_path(path)
 
+        # check parent directory exists
+        self.checkParentDirExists(path)
+        
         type = self.guess_type(path)
         things = []
         if type == "directory":
@@ -416,6 +421,18 @@ class SwiftFS(HasTraits):
                 path = ''
         return path
 
+    @LogMethodResults()
+    def checkParentDirExists(self,path):
+        """checks if the parent directory of a path exists"""
+        p = path.strip(self.delimiter)
+        p = p.split(self.delimiter)[:-1]
+        p = self.delimiter.join(p)
+        self.log.debug("SwiftFS.checkDirExists: directory name %s",p)
+        if not self.isdir(p):
+            self.do_error('parent directory does not exist %s'%p, code=400)
+        
+        
+    
     @LogMethod()
     def do_error(self, msg, code=500):
         self.log.error(msg)
