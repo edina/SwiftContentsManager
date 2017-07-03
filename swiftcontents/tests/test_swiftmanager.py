@@ -8,6 +8,7 @@ from pprint import pprint
 from swiftcontents.ipycompat import TestContentsManager
 
 from swiftcontents import SwiftContentsManager
+from swiftcontents.swiftfs import SwiftError
 from tempfile import TemporaryDirectory
 from tornado.web import HTTPError
 
@@ -52,8 +53,7 @@ class Test_SwiftManager(object):
     # removes the stuff setup, and tests it's gone!
     def teardown(self):
         log.info('tidy up directory structure')
-        self.swiftmanager.swiftfs.rm(testDirectories[0],recursive=True)
-        assert_false(self.swiftmanager.swiftfs.isdir(testDirectories[0]))
+        self.swiftmanager.swiftfs.remove_container()
 
     # Test the central error-handler
     def test_do_error(self):

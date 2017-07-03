@@ -1,6 +1,6 @@
 import logging
 from nose.tools import assert_equals, assert_not_equals, assert_raises, assert_true, assert_false,assert_set_equal, assert_not_in
-from swiftcontents.swiftfs import SwiftFS, HTTPError
+from swiftcontents.swiftfs import SwiftFS, HTTPError, SwiftError
 
 # list of dirs to make
 # note, directory names must end with a /
@@ -38,6 +38,11 @@ log = logging.getLogger('TestSwiftFS')
 class Test_SwiftNoFS(object):
     def __init__(self):
         self.swiftfs = SwiftFS()
+
+    def teardown(self):
+        log.info('tidy up directory structure')
+        self.swiftfs.rm(testDirectories[0], recursive=True)
+        self.swiftfs.remove_container()
 
     def guess_type(self,gtype):
         log.info('testing guess_type %s',gtype)
@@ -160,6 +165,13 @@ class Test_SwiftFS(object):
         for d in testDirectories:
             p = d+testFileName
             assert_true(self.swiftfs.isfile(p))
+
+    def test_delete_container(self):
+        log.info('Confirm we can delete the container')
+        self.swiftfs.remove_container()
+        assert_raises(SwiftError, lambda: self.swiftfs.swift.stat(container=self.swiftfs.container))
+        self.swiftfs.swift.post(container=self.swiftfs.container)   # remake the container, else teardown barfs
+
 
     def test_listdir_normalmode(self):
         log.info('check listdir in normal mode')
