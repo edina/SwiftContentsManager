@@ -54,10 +54,10 @@ class SwiftContentsManager(ContentsManager):
             exists = self.dir_exists(path)
         else:
             exists = self.file_exists(path)
-            
+
         if not exists:
             self.no_such_entity(path)
-            
+
         # construct accessor name from type
         # eg file => _get_file
         func = getattr(self,'_get_'+type)
@@ -251,7 +251,7 @@ class SwiftContentsManager(ContentsManager):
             self.log.debug("swiftmanager._convert_file_records iterating: '%s'" % r)
             type_ = ""
 
-            # For some reason, "path" sometimes comes through as a dictionary like:
+            # Each record is a dictionary thus:
             # {'hash': 'd41d8cd98f00b204e9800998ecf8427e', 'bytes': 0, 'last_modified': '2017-05-31T09:20:22.224Z', 'name': 'foo/file.txt'}
             # in which case, we 
             if not isinstance(r, str):

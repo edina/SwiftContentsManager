@@ -79,12 +79,11 @@ class SwiftFS(HasTraits):
              'name': 'foo/bar/thingamy.bob'}
         """
         files = []
-        #path = self.clean_path(path)
 
         # Get all objects that match the known path
+        path = self.clean_path(path)
+        _opts = {'prefix': path}
         try:
-            path = self.clean_path(path)
-            _opts = {'prefix': path}
             dir_listing = self.swift.list(container=self.container,
                                      options=_opts)
             for page in dir_listing:  # each page is up to 10,000 items
@@ -117,7 +116,6 @@ class SwiftFS(HasTraits):
     # We can 'stat' files, but not directories
     @LogMethodResults()
     def isfile(self, path):
-        #path = self.clean_path(path)
 
         if path is None or path == '':
             self.log.debug("SwiftFS.isfile has no path, returning False")
@@ -125,23 +123,22 @@ class SwiftFS(HasTraits):
 
         _isfile = False
         if not path.endswith(self.delimiter):
-            try:
-                path = self.clean_path(path)
+           path = self.clean_path(path)
+           try:
                 response = self.swift.stat(container=self.container, objects=[path])
-                for r in response:
-                    if r['success']:
-                        _isfile =  True
-                    else:
-                        self.log.error('Failed to retrieve stats for %s' % r['object'])
-                    break
-            except Exception as e:
+           except Exception as e:
                 self.log.error("SwiftFS.isfile %s", e.value)
+           for r in response:
+               if r['success']:
+                   _isfile =  True
+               else:
+                   self.log.error('Failed to retrieve stats for %s' % r['object'])
+               break
         return _isfile
 
     # We can 'list' direcotries, but not 'stat' them
     @LogMethodResults()
     def isdir(self, path):
-        #path = self.clean_path(path)
 
         # directories mush have a trailing slash on them.
         # The core code seems to remove any trailing slash, so lets add it back
@@ -155,21 +152,22 @@ class SwiftFS(HasTraits):
             return True
 
         _isdir = False
+
+        path = self.clean_path(path)
+        _opts = {}
+        if re.search('\w', path):
+            _opts = {'prefix': path}
         try:
-            path = self.clean_path(path)
-            _opts = {}
-            if re.search('\w', path):
-                _opts = {'prefix': path}
-                self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
+            self.log.debug("SwiftFS.isdir setting prefix to '%s'", path)
             response = self.swift.list(container=self.container, options=_opts)
-            for r in response:
-                if r['success']:
-                    _isdir = True
-                else:
-                    self.log.error('Failed to retrieve stats for %s' % path)
-                break
         except SwiftError as e:
             self.log.error("SwiftFS.isdir %s", e.value)
+        for r in response:
+            if r['success']:
+                _isdir = True
+            else:
+                self.log.error('Failed to retrieve stats for %s' % path)
+            break
         return _isdir
 
     @LogMethod()
@@ -182,9 +180,18 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def remove_container(self):
-        response = self.swift.delete(container=self.container)
-        for r in response:
-            self.log.debug("SwiftFS.rm action: `%s` success: `%s`", r['action'], r['success'])
+        response = {}
+        try:
+            response = self.swift.stat(container=self.container)
+        except SwiftError as e:
+            self.log.error("SwiftFS.remove_container %s", e.value)
+        if 'success' in response and response['success'] == True :
+            try:
+                response = self.swift.delete(container=self.container)
+            except SwiftError as e:
+                self.log.error("SwiftFS.remove_container %s", e.value)
+            for r in response:
+                self.log.debug("SwiftFS.rm action: `%s` success: `%s`", r['action'], r['success'])
 
 
     @LogMethod()
@@ -213,16 +220,16 @@ class SwiftFS(HasTraits):
             if not isEmpty:
                 self.do_error("directory %s not empty" % path, code=400)
 
+            path = self.clean_path(path)
             try:
-                path = self.clean_path(path)
                 response = self.swift.delete(container=self.container,
                                         objects=[path])
-                for r in response:
-                    self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
-                                   r['action'], r['success'])
             except SwiftError as e:
                 self.log.error("SwiftFS.rm %s", e.value)
                 return False
+            for r in response:
+                self.log.debug("SwiftFS.rm action: `%s` success: `%s`",
+                               r['action'], r['success'])
             return True
 
     @LogMethod()
@@ -244,17 +251,15 @@ class SwiftFS(HasTraits):
     # does clever recursive stuff for directory trees
     @LogMethod()
     def _copymove(self, old_path, new_path, with_delete=False):
-        #old_path = self.clean_path(old_path)
-        #new_path = self.clean_path(new_path)
 
         for f in self._walk_path(old_path):
             new_f = f.replace(old_path, new_path, 1)
             if self.guess_type(f) == 'directory':
                 self.mkdir(new_f)
             else:
+                old_path = self.clean_path(old_path)
+                new_path = self.clean_path(new_path)
                 try:
-                    old_path = self.clean_path(old_path)
-                    new_path = self.clean_path(new_path)
                     response = self.swift.copy(self.container, [f],
                                           {'destination': self.delimiter +
                                            self.container +
@@ -284,7 +289,6 @@ class SwiftFS(HasTraits):
     # Directories are just objects that have a trailing '/'
     @LogMethod()
     def mkdir(self, path):
-        #path = self.clean_path(path)
         path = path.rstrip(self.delimiter)
         path = path + self.delimiter
         self._do_write(path, None)
@@ -299,13 +303,12 @@ class SwiftFS(HasTraits):
         if self.guess_type(path) == "directory":
             msg = "cannot read from path %s: it is a directory"%path
             self.do_error(msg, code=400)
-        
-        #path = self.clean_path(path)
+
         content = ''
         fhandle,localFile = tempfile.mkstemp(prefix="swiftfs_")
         os.close(fhandle)
+        path = self.clean_path(path)
         try:
-            path = self.clean_path(path)
             response = self.swift.download(container=self.container,
                                            objects=[path],options={"out_file":localFile})
         except SwiftError as e:
@@ -313,7 +316,7 @@ class SwiftFS(HasTraits):
             return ''
 
         for r in response:
-            if r['success']:        
+            if r['success']:
                 self.log.debug("SwiftFS.read: using local file %s",localFile)
                 with open(localFile) as lf:
                     content = lf.read()
@@ -327,7 +330,7 @@ class SwiftFS(HasTraits):
         if self.guess_type(path) == "directory":
             msg = "cannot write to path %s: it is a directory"%path
             self.do_error(msg, code=400)
-            
+
         #path = self.clean_path(path)
         # If we can't make the directory path, then we can't make the file!
         success = self._make_intermedate_dirs(path)
@@ -357,7 +360,6 @@ class SwiftFS(HasTraits):
 
     @LogMethod()
     def _do_write(self, path, content):
-        #path = self.clean_path(path)
 
         type = self.guess_type(path)
         things = []
@@ -369,19 +371,19 @@ class SwiftFS(HasTraits):
             output = io.BytesIO(content.encode('utf-8'))
             things.append(SwiftUploadObject(output, object_name=path))
 
+        # Now do the upload
+        path = self.clean_path(path)
         try:
-            # Now do the upload
-            path = self.clean_path(path)
             response = self.swift.upload(self.container, things)
-            for r in response:
-                self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
-                               r['action'], r['success'])
         except SwiftError as e:
             self.log.error("SwiftFS._do_write swift-error: %s", e.value)
             raise
         except ClientException as e:
             self.log.error("SwiftFS._do_write client-error: %s", e.value)
             raise
+        for r in response:
+            self.log.debug("SwiftFS._do_write action: '%s', response: '%s'",
+                           r['action'], r['success'])
 
     @LogMethodResults()
     def guess_type(self, path, allow_directory=True):
